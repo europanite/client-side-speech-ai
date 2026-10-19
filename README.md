@@ -30,7 +30,7 @@
 
 [▶ Open the app](https://europanite.github.io/client-side-speech-ai/)
 
-Browser-based client-side speech-to-text (Whisper) and text-to-speech (Kokoro) tool.
+Browser-based client-side speech-to-text (Whisper) and text-to-speech (Kokoro + Pocket TTS) tool.
 The input media and text are processed by models in the browser; model, library and dictionary
 assets are downloaded on first use. No installation, registration, or payment required.
 
@@ -42,6 +42,7 @@ This project is a bidirectional audio/text web app built with React, TypeScript,
 Whisper runs locally through `@huggingface/transformers` for STT.
 Kokoro-82M with the `kokoro-js-jp` browser runtime supports English and Japanese TTS,
 including local WAV generation, playback, and download.
+Advanced TTS uses Pocket TTS for client-side English voice cloning from a short reference recording.
 
 The interface has two modes but one shared workspace: Audio on the left, Text on the right.
 STT supports media files and live microphone capture; TTS lets you edit text and generate
@@ -49,18 +50,21 @@ playable and downloadable speech. Mobile layouts stack the Audio and Text panes.
 
 ## ✨ Features
 
-- **Client-side speech-to-text**  
+- **Client-side speech-to-text**
   The React app calls the `automatic-speech-recognition` pipeline from `@huggingface/transformers` directly in the browser, so transcription runs entirely on the client.
 
 - **Client-side neural text-to-speech**
   Kokoro generates speech for English or Japanese, with WAV playback and file download.
   The model runs locally after assets have been downloaded; synthesis is batch-based.
+  **Advanced** mode uses Pocket TTS (English, INT8/WASM) for local voice cloning.
+  Record or select 5–10 seconds of your own voice (or an authorized recording),
+  save reference clips locally, and export the generated WAV.
 
 - **Unified STT/TTS workspace**
   Switch between Audio → Text and Text → Audio while keeping the Audio pane on the left
   and Text pane on the right; generated STT text is available in the TTS editor.
 
-- **Live microphone streaming transcription**  
+- **Live microphone streaming transcription**
   The app can capture microphone audio directly in the browser and transcribe it continuously without uploading audio to a server.
   - Live PCM audio is captured with the Web Audio API
   - Audio is buffered into short windows before Whisper inference
@@ -96,7 +100,7 @@ playable and downloadable speech. Mobile layouts stack the Audio and Text panes.
 ## 🧱 Tech stack
 
 - Frontend: React + TypeScript + Vite
-- ML runtime: `@huggingface/transformers` (STT), Kokoro-82M / `kokoro-js-jp` (TTS)
+- ML runtime: `@huggingface/transformers` (STT), Kokoro-82M / `kokoro-js-jp` (Standard TTS), `pocket-tts-js` (Advanced TTS)
 - Inference tasks: `automatic-speech-recognition` and `text-to-speech`
 - Browser audio handling: Web Audio API (`AudioContext`)
 - Testing: Jest + Testing Library
@@ -113,7 +117,7 @@ playable and downloadable speech. Mobile layouts stack the Audio and Text panes.
 
 The settings bar currently displays the runtime summary:
 
-- `Whisper STT + Kokoro TTS`
+- `Whisper STT + Kokoro / Pocket TTS`
 
 ### 2. Model and file selection
 

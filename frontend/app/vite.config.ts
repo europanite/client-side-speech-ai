@@ -15,6 +15,6 @@ export default defineConfig({
 
   optimizeDeps: {
     // transformers.js is too heavy to import first
-    exclude: ["@huggingface/transformers"]
+    exclude: ["@huggingface/transformers", "pocket-tts-js"]
   }
 });

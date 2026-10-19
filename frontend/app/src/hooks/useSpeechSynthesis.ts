@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { synthesizeSpeech } from "../services/ttsEngine";
+import { synthesizeClonedSpeech, cancelClonedSpeech } from "../services/advancedTts";
+
+export type TtsSelection = { mode: "standard" | "advanced"; referenceFile?: File | null };
 
 export type TtsStatus = "idle" | "loading-model" | "synthesizing" | "done" | "error";
 
@@ -13,6 +16,7 @@ export const TTS_VOICES = [
 export function useSpeechSynthesis() {
   const [status, setStatus] = useState<TtsStatus>("idle");
   const [error, setError] = useState<string | null>(null);
+  const [progress, setProgress] = useState<{ label: string; percent: number | null } | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [voiceId, setVoiceId] = useState<string>(TTS_VOICES[0].id);
   const generationRef = useRef(0);
@@ -32,6 +36,8 @@ export function useSpeechSynthesis() {
     // Kokoro does not currently expose a portable interrupt signal.
     // Ignore an in-flight completion rather than displaying stale speech.
     generationRef.current += 1;
+    cancelClonedSpeech();
+    setProgress(null);
     setError(null);
     setStatus("idle");
   }, []);
@@ -41,7 +47,7 @@ export function useSpeechSynthesis() {
     clearOutput();
   }, [cancel, clearOutput]);
 
-  const synthesize = useCallback(async (text: string) => {
+  const synthesize = useCallback(async (text: string, selection: TtsSelection = { mode: "standard" }) => {
     const input = text.trim();
     if (!input) {
       setError("Enter some text to synthesize.");
@@ -49,21 +55,36 @@ export function useSpeechSynthesis() {
       return;
     }
 
+    if (selection.mode === "advanced" && !selection.referenceFile) {
+      setError("Choose or record a reference voice first.");
+      setStatus("error");
+      return;
+    }
+
     const generation = ++generationRef.current;
     clearOutput();
     setError(null);
+    setProgress(null);
     setStatus("loading-model");
     try {
-      const blob = await synthesizeSpeech(input, voiceId, () => {
+      const onReady = () => {
         if (generation === generationRef.current) setStatus("synthesizing");
-      });
+      };
+      const blob = selection.mode === "advanced"
+        ? await synthesizeClonedSpeech(input, { voiceSample: selection.referenceFile! }, onReady,
+          (label, percent) => {
+            if (generation === generationRef.current) setProgress({ label, percent });
+          })
+        : await synthesizeSpeech(input, voiceId, onReady);
       if (generation !== generationRef.current) return;
       const url = URL.createObjectURL(blob);
       urlRef.current = url;
       setAudioUrl(url);
+      setProgress(null);
       setStatus("done");
     } catch (reason) {
       if (generation !== generationRef.current) return;
+      setProgress(null);
       setError(reason instanceof Error ? reason.message : "Speech generation failed.");
       setStatus("error");
     }
@@ -71,11 +92,12 @@ export function useSpeechSynthesis() {
 
   useEffect(() => () => {
     generationRef.current += 1;
+    cancelClonedSpeech();
     if (urlRef.current) URL.revokeObjectURL(urlRef.current);
   }, []);
 
   return {
-    status, error, audioUrl, voiceId, setVoiceId,
+    status, error, progress, audioUrl, voiceId, setVoiceId,
     voices: TTS_VOICES, synthesize, cancel, reset,
   };
 }

@@ -29,7 +29,7 @@ const transcribe = (): MockTranscription => ({
 });
 
 const synthesize = (): MockSynthesis => ({
-  status: "idle", error: null, audioUrl: null,
+  status: "idle", error: null, progress: null, audioUrl: null,
   voiceId: "af_heart", setVoiceId: jest.fn(),
   voices: [
     { id: "af_heart", label: "English — female", language: "en" },
@@ -105,6 +105,22 @@ describe("bidirectional HomeScreen", () => {
     expect(editor.value).toBe("Hello from STT");
     fireEvent.click(screen.getByText("Generate speech"));
     expect(tts.synthesize).toHaveBeenCalledWith("Hello from STT");
+  });
+
+  it("exposes Pocket TTS Advanced Mode and requires a reference voice", () => {
+    const tts = synthesize();
+    (useSpeechSynthesis as jest.Mock).mockReturnValue(tts);
+    render(<HomeScreen />);
+    fireEvent.click(screen.getByRole("button", { name: "Text → Audio (TTS)" }));
+    fireEvent.change(screen.getByLabelText("TTS mode"), { target: { value: "advanced" } });
+    expect(screen.getByText(/Pocket TTS \(English voice cloning\)/)).not.toBeNull();
+    fireEvent.change(screen.getByRole("textbox", { name: "Text" }), { target: { value: "Hello" } });
+    expect((screen.getByRole("button", { name: "Generate speech" }) as HTMLButtonElement).disabled).toBe(true);
+    const voice = new File(["wav"], "me.wav", { type: "audio/wav" });
+    fireEvent.change(screen.getByLabelText("Reference voice (audio file)"), { target: { files: [voice] } });
+    expect((screen.getByRole("button", { name: "Generate speech" }) as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "Generate speech" }));
+    expect(tts.synthesize).toHaveBeenCalledWith("Hello", { mode: "advanced", referenceFile: voice });
   });
 
   it("shows generated audio and allows WAV download", () => {

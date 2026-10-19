@@ -15,7 +15,7 @@ const App: React.FC = () => {
               </h1>
             </a>
             <p className="app-subtitle">
-              Convert audio to text with Whisper and text to speech with Kokoro in your browser. No account required.
+              Convert audio to text with Whisper and text to speech with Kokoro or Pocket TTS in your browser. No account required.
             </p>
           </div>
           <SettingsBar />

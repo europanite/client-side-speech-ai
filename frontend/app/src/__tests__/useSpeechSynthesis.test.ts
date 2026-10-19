@@ -1,8 +1,10 @@
 import { act, renderHook } from "@testing-library/react";
 import { useSpeechSynthesis } from "../hooks/useSpeechSynthesis";
 import { synthesizeSpeech } from "../services/ttsEngine";
+import { synthesizeClonedSpeech } from "../services/advancedTts";
 
 jest.mock("../services/ttsEngine", () => ({ synthesizeSpeech: jest.fn() }));
+jest.mock("../services/advancedTts", () => ({ synthesizeClonedSpeech: jest.fn(), cancelClonedSpeech: jest.fn() }));
 
 const speakMock = synthesizeSpeech as jest.Mock;
 const createObjectURL = jest.fn(() => "blob:test");
@@ -27,6 +29,24 @@ describe("useSpeechSynthesis", () => {
     act(() => result.current.reset());
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:test");
     unmount();
+  });
+
+  it("routes Advanced to Pocket TTS with the reference file", async () => {
+    (synthesizeClonedSpeech as jest.Mock).mockResolvedValue(new Blob(["RIFF"], { type: "audio/wav" }));
+    const file = new File(["audio"], "me.wav", { type: "audio/wav" });
+    const { result } = renderHook(() => useSpeechSynthesis());
+    await act(async () => { await result.current.synthesize("Hello", { mode: "advanced", referenceFile: file }); });
+    expect(synthesizeClonedSpeech).toHaveBeenCalledWith(
+      "Hello", { voiceSample: file }, expect.any(Function), expect.any(Function));
+    expect(speakMock).not.toHaveBeenCalled();
+    expect(result.current.status).toBe("done");
+  });
+
+  it("rejects Advanced without a reference voice", async () => {
+    const { result } = renderHook(() => useSpeechSynthesis());
+    await act(async () => { await result.current.synthesize("Hello", { mode: "advanced" }); });
+    expect(result.current.error).toMatch(/reference voice/i);
+    expect(synthesizeClonedSpeech).not.toHaveBeenCalled();
   });
 
   it("rejects empty text without calling the engine", async () => {

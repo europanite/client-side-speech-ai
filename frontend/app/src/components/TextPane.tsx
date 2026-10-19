@@ -3,6 +3,7 @@ interface TextPaneProps {
   value: string;
   busy: boolean;
   canClear: boolean;
+  canGenerate?: boolean;
   onChange: (value: string) => void;
   onGenerate: () => void;
   onCancel: () => void;
@@ -10,7 +11,7 @@ interface TextPaneProps {
 }
 
 export function TextPane({
-  mode, value, busy, canClear, onChange, onGenerate, onCancel, onClear,
+  mode, value, busy, canClear, canGenerate = true, onChange, onGenerate, onCancel, onClear,
 }: TextPaneProps) {
   return (
     <section className="section workspace-pane" aria-label="Text pane">
@@ -31,7 +32,7 @@ export function TextPane({
               Cancel result
             </button>
           ) : (
-            <button type="button" className="btn primary" disabled={!value.trim()}
+            <button type="button" className="btn primary" disabled={!value.trim() || !canGenerate}
               onClick={onGenerate}>Generate speech</button>
           )
         )}
