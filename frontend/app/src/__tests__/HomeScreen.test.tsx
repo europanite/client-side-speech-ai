@@ -104,10 +104,10 @@ describe("bidirectional HomeScreen", () => {
     expect(editor.readOnly).toBe(false);
     expect(editor.value).toBe("Hello from STT");
     fireEvent.click(screen.getByText("Generate speech"));
-    expect(tts.synthesize).toHaveBeenCalledWith("Hello from STT");
+    expect(tts.synthesize).toHaveBeenCalledWith("Hello from STT", { mode: "standard" });
   });
 
-  it("exposes Pocket TTS Advanced Mode and requires a reference voice", () => {
+  it("exposes Pocket TTS Advanced Mode and requires a reference voice", async () => {
     const tts = synthesize();
     (useSpeechSynthesis as jest.Mock).mockReturnValue(tts);
     render(<HomeScreen />);
@@ -121,6 +121,7 @@ describe("bidirectional HomeScreen", () => {
     expect((screen.getByRole("button", { name: "Generate speech" }) as HTMLButtonElement).disabled).toBe(false);
     fireEvent.click(screen.getByRole("button", { name: "Generate speech" }));
     expect(tts.synthesize).toHaveBeenCalledWith("Hello", { mode: "advanced", referenceFile: voice });
+    await waitFor(() => expect(screen.queryByText("Checking reference duration...")).toBeNull());
   });
 
   it("shows generated audio and allows WAV download", () => {

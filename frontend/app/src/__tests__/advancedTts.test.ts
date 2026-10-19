@@ -25,7 +25,7 @@ describe("Advanced TTS WAV serialization", () => {
 describe("Advanced TTS reference selection", () => {
   it("retains short recordings as-is", () => {
     const samples = new Float32Array(24000 * 5);
-    const audio = { duration: 5, sampleRate: 24000, getChannelData: () => samples } as AudioBuffer;
+    const audio = { duration: 5, sampleRate: 24000, getChannelData: () => samples } as unknown as AudioBuffer;
     expect(referenceWindow(audio)).toEqual({ offset: 0, duration: 5 });
   });
 
@@ -33,7 +33,7 @@ describe("Advanced TTS reference selection", () => {
     const rate = 200;
     const samples = new Float32Array(rate * 40);
     samples.fill(0.5, rate * 25, rate * 34);
-    const audio = { duration: 40, sampleRate: rate, getChannelData: () => samples } as AudioBuffer;
+    const audio = { duration: 40, sampleRate: rate, getChannelData: () => samples } as unknown as AudioBuffer;
     const result = referenceWindow(audio);
     expect(result.duration).toBe(10);
     expect(result.offset).toBeGreaterThanOrEqual(24);
