@@ -4,6 +4,7 @@ import { useSpeechSynthesis } from "../hooks/useSpeechSynthesis";
 import { MediaPane } from "../components/MediaPane";
 import { TextPane } from "../components/TextPane";
 import { OperationStatus } from "../components/OperationStatus";
+import { AdvancedVoiceControls } from "../components/AdvancedVoiceControls";
 
 type Direction = "stt" | "tts";
 
@@ -13,6 +14,8 @@ const HomeScreen = () => {
   const [mode, setMode] = useState<Direction>("stt");
   const [draftText, setDraftText] = useState("");
   const [selectedFileName, setSelectedFileName] = useState("");
+  const [ttsMode, setTtsMode] = useState<"standard" | "advanced">("standard");
+  const [referenceFile, setReferenceFile] = useState<File | null>(null);
 
   const {
     status, error, transcript, progress, availableModels, selectedModelId,
@@ -88,8 +91,12 @@ const HomeScreen = () => {
 
   const ttsStatusLabel = (() => {
     switch (speech.status) {
-      case "idle": return "Enter text and generate audio.";
-      case "loading-model": return "Loading Kokoro TTS locally (first download can be large)...";
+      case "idle": return ttsMode === "advanced"
+        ? "Choose a reference voice, enter English text, and generate speech."
+        : "Enter text and generate audio.";
+      case "loading-model": return ttsMode === "advanced"
+        ? "Loading Pocket TTS locally (first download)..."
+        : "Loading Kokoro TTS locally (first download can be large)...";
       case "synthesizing": return "Generating speech locally...";
       case "done": return "Speech ready. Play or download it from the Audio pane.";
       case "error": return "Speech generation failed.";
@@ -133,8 +140,22 @@ const HomeScreen = () => {
           </>
         ) : (
           <div className="field-group">
-            <label className="field-label" htmlFor="tts-voice-select">TTS voice</label>
-            <select id="tts-voice-select" className="select-input" value={speech.voiceId}
+            <label className="field-label" htmlFor="tts-mode-select">TTS mode</label>
+            <select id="tts-mode-select" className="select-input" value={ttsMode}
+              disabled={ttsBusy} onChange={(event) => {
+                speech.reset();
+                setTtsMode(event.target.value as "standard" | "advanced");
+              }}>
+              <option value="standard">Standard — Kokoro voices</option>
+              <option value="advanced">Advanced — clone my voice (English, Pocket TTS)</option>
+            </select>
+            {ttsMode === "advanced" ? (
+              <AdvancedVoiceControls disabled={ttsBusy} referenceFile={referenceFile}
+                onReferenceFile={(file) => { speech.reset(); setReferenceFile(file); }} />
+            ) : (
+              <>
+                <label className="field-label" htmlFor="tts-voice-select">TTS voice</label>
+                <select id="tts-voice-select" className="select-input" value={speech.voiceId}
               onChange={(event) => {
                 speech.reset();
                 speech.setVoiceId(event.target.value);
@@ -143,7 +164,9 @@ const HomeScreen = () => {
                 <option key={voice.id} value={voice.id}>{voice.label} ({voice.id})</option>
               ))}
             </select>
-            <p className="helper-text">Kokoro 82M (English/Japanese); model assets are downloaded once and inference runs in your browser.</p>
+                <p className="helper-text">Kokoro 82M (English/Japanese); model assets are downloaded once and inference runs in your browser.</p>
+              </>
+            )}
           </div>
         )}
       </section>
@@ -163,20 +186,22 @@ const HomeScreen = () => {
             setDraftText(value);
             speech.reset();
           }}
-          onGenerate={() => { void speech.synthesize(draftText); }}
+          canGenerate={ttsMode !== "advanced" || Boolean(referenceFile)}
+          onGenerate={() => { void speech.synthesize(draftText,
+            ttsMode === "advanced" ? { mode: "advanced", referenceFile } : { mode: "standard" }); }}
           onCancel={speech.cancel} onClear={clear} />
       </div>
 
       <OperationStatus label={mode === "stt" ? sttStatusLabel : ttsStatusLabel}
         busy={mode === "stt" ? sttBusy : ttsBusy}
-        progress={mode === "stt" ? progress : null}
+        progress={mode === "stt" ? progress : speech.progress}
         progressName={mode === "stt" ? "Transcription progress" : "Speech synthesis progress"}
         error={mode === "stt" ? error : speech.error} />
 
       <p className="footer-note">
         STT: Whisper runs in the browser; live transcription uses short buffered windows.
-        TTS: Kokoro synthesizes WAV audio on the device after downloading the model and voice assets.
-        TTS generation is batch-based, not real-time streaming. No audio or text is sent to an inference backend.
+        TTS: Standard uses Kokoro; Advanced uses Pocket TTS for English voice cloning.
+        Both synthesize locally after downloading model assets. Reference audio and text are never sent to an inference backend.
       </p>
     </main>
   );

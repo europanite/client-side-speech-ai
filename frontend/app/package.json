@@ -20,6 +20,7 @@
     "jest": "^30.2.0",
     "jest-environment-jsdom": "^30.2.0",
     "onnxruntime-web": "^1.23.2",
+    "pocket-tts-js": "0.1.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-native": "^0.82.1",
