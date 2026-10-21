@@ -55,7 +55,7 @@ describe("bidirectional HomeScreen", () => {
     expect(screen.getByRole("region", { name: "Text pane" })).not.toBeNull();
     expect((screen.getByRole("textbox", { name: "Text" }) as HTMLTextAreaElement).readOnly).toBe(true);
     expect(screen.getByRole("button", { name: "Engine settings" }).getAttribute("aria-expanded")).toBe("false");
-    expect(screen.getByRole("region", { name: "Model settings", hidden: true }).hasAttribute("hidden")).toBe(true);
+    expect(document.getElementById("model-settings-panel")?.hasAttribute("hidden")).toBe(true);
   });
 
   it("opens and closes engine options without hiding the workspace", () => {
@@ -68,7 +68,7 @@ describe("bidirectional HomeScreen", () => {
     expect(screen.getByRole("region", { name: "Text pane" })).not.toBeNull();
     fireEvent.keyDown(document, { key: "Escape" });
     expect(toggle.getAttribute("aria-expanded")).toBe("false");
-    expect(screen.getByRole("region", { name: "Model settings", hidden: true }).hasAttribute("hidden")).toBe(true);
+    expect(document.getElementById("model-settings-panel")?.hasAttribute("hidden")).toBe(true);
     fireEvent.click(toggle);
     fireEvent.pointerDown(screen.getByRole("region", { name: "Audio pane" }));
     expect(toggle.getAttribute("aria-expanded")).toBe("false");
