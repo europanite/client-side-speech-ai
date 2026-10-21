@@ -33,7 +33,10 @@ export function MediaPane({
 
   return (
     <section className="section workspace-pane" aria-label="Audio pane">
-      <h2 className="section-title">Audio</h2>
+      <div className="pane-heading">
+        <h2 className="section-title">Audio</h2>
+        <span className="pane-role">{mode === "stt" ? "INPUT" : "OUTPUT"}</span>
+      </div>
       {mode === "stt" ? (
         <>
           <p className="section-description">File or live microphone input</p>

@@ -1,6 +1,5 @@
 import React from "react";
 import HomeScreen from "./screens/HomeScreen";
-import SettingsBar from "./components/SettingsBar";
 import { REPO_URL } from "./screens/HomeScreenUtil";
 
 const App: React.FC = () => {
@@ -8,17 +7,19 @@ const App: React.FC = () => {
     <div className="app-root">
       <div className="app-shell">
         <header className="app-header">
-          <div>
-            <a href={REPO_URL} target="_blank" rel="noreferrer">
-              <h1 className="app-title">
-                Client-Side Speech AI
-              </h1>
-            </a>
-            <p className="app-subtitle">
-              Convert audio to text with Whisper and text to speech with Kokoro or Pocket TTS in your browser. No account required.
-            </p>
+          <div className="brand-lockup">
+            <div className="brand-symbol" aria-hidden="true">
+              <span /><span /><span /><span /><span />
+            </div>
+            <div className="brand-copy">
+              <a href={REPO_URL} target="_blank" rel="noreferrer">
+                <h1 className="app-title">Client-Side Speech AI</h1>
+              </a>
+              <p className="app-subtitle">
+                Text to Speech, Speech to Text in your browser. Not setup. No account. No payment. 
+              </p>
+            </div>
           </div>
-          <SettingsBar />
         </header>
 
         <HomeScreen />
