@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranscription } from "../hooks/useTranscription";
 import { useSpeechSynthesis } from "../hooks/useSpeechSynthesis";
 import { MediaPane } from "../components/MediaPane";
@@ -16,6 +16,30 @@ const HomeScreen = () => {
   const [selectedFileName, setSelectedFileName] = useState("");
   const [ttsMode, setTtsMode] = useState<"standard" | "advanced">("standard");
   const [referenceFile, setReferenceFile] = useState<File | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsMenuRef = useRef<HTMLDivElement>(null);
+  const settingsButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!settingsOpen) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (event.target instanceof Node && !settingsMenuRef.current?.contains(event.target)) {
+        setSettingsOpen(false);
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setSettingsOpen(false);
+        settingsButtonRef.current?.focus();
+      }
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [settingsOpen]);
 
   const {
     status, error, transcript, progress, availableModels, selectedModelId,
@@ -105,14 +129,36 @@ const HomeScreen = () => {
 
   return (
     <main className="home">
+      <div className="mode-toolbar">
       <nav className="direction-tabs" role="group" aria-label="Conversion direction">
         <button type="button" className={`direction-tab ${mode === "stt" ? "active" : ""}`}
-          aria-pressed={mode === "stt"} onClick={() => switchMode("stt")}>Audio → Text (STT)</button>
+          aria-pressed={mode === "stt"} onClick={() => switchMode("stt")}>
+          <span className="tab-number" aria-hidden="true">01</span>
+          <span>Audio → Text (STT)</span>
+          <span className="tab-arrow" aria-hidden="true">↗</span>
+        </button>
         <button type="button" className={`direction-tab ${mode === "tts" ? "active" : ""}`}
-          aria-pressed={mode === "tts"} onClick={() => switchMode("tts")}>Text → Audio (TTS)</button>
+          aria-pressed={mode === "tts"} onClick={() => switchMode("tts")}>
+          <span className="tab-number" aria-hidden="true">02</span>
+          <span>Text → Audio (TTS)</span>
+          <span className="tab-arrow" aria-hidden="true">↗</span>
+        </button>
       </nav>
 
-      <section className="section model-controls" aria-label="Model settings">
+      <div className="engine-menu" ref={settingsMenuRef}>
+        <button ref={settingsButtonRef} type="button" className={`engine-settings-toggle ${settingsOpen ? "active" : ""}`}
+          aria-label="Engine settings" aria-expanded={settingsOpen} aria-controls="model-settings-panel"
+          onClick={() => setSettingsOpen((open) => !open)}>
+          <span className="engine-settings-icon" aria-hidden="true">⚙</span>
+          <span className="engine-settings-label">Settings</span>
+          <span className="engine-settings-chevron" aria-hidden="true">{settingsOpen ? "−" : "+"}</span>
+        </button>
+      <section id="model-settings-panel" hidden={!settingsOpen}
+        className={`section model-controls settings-popover ${mode === "tts" ? "tts-controls" : ""}`} aria-label="Model settings">
+        <div className="model-heading">
+          <span className="model-heading-label"><span className="model-heading-icon" aria-hidden="true">✦</span> ENGINE CONFIGURATION</span>
+          <span className="model-heading-mode">{mode === "stt" ? "WHISPER STT" : "SPEECH SYNTHESIS"}</span>
+        </div>
         {mode === "stt" ? (
           <>
             <div className="field-group">
@@ -170,6 +216,8 @@ const HomeScreen = () => {
           </div>
         )}
       </section>
+      </div>
+      </div>
 
       <div className="workspace-grid">
         <MediaPane mode={mode} fileName={selectedFileName} busy={sttBusy}
@@ -197,12 +245,6 @@ const HomeScreen = () => {
         progress={mode === "stt" ? progress : speech.progress}
         progressName={mode === "stt" ? "Transcription progress" : "Speech synthesis progress"}
         error={mode === "stt" ? error : speech.error} />
-
-      <p className="footer-note">
-        STT: Whisper runs in the browser; live transcription uses short buffered windows.
-        TTS: Standard uses Kokoro; Advanced uses Pocket TTS for English voice cloning.
-        Both synthesize locally after downloading model assets. Reference audio and text are never sent to an inference backend.
-      </p>
     </main>
   );
 };

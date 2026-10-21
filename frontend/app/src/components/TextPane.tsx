@@ -15,7 +15,10 @@ export function TextPane({
 }: TextPaneProps) {
   return (
     <section className="section workspace-pane" aria-label="Text pane">
-      <h2 className="section-title">Text</h2>
+      <div className="pane-heading">
+        <h2 className="section-title">Text</h2>
+        <span className="pane-role">{mode === "stt" ? "OUTPUT" : "INPUT"}</span>
+      </div>
       <p className="section-description">
         {mode === "stt" ? "Transcribed text" : "Text to synthesize"}
       </p>

@@ -54,13 +54,31 @@ describe("bidirectional HomeScreen", () => {
     expect(screen.getByRole("region", { name: "Audio pane" })).not.toBeNull();
     expect(screen.getByRole("region", { name: "Text pane" })).not.toBeNull();
     expect((screen.getByRole("textbox", { name: "Text" }) as HTMLTextAreaElement).readOnly).toBe(true);
-    expect(screen.getByLabelText("Whisper model")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Engine settings" }).getAttribute("aria-expanded")).toBe("false");
+    expect(screen.getByRole("region", { name: "Model settings", hidden: true }).hasAttribute("hidden")).toBe(true);
+  });
+
+  it("opens and closes engine options without hiding the workspace", () => {
+    render(<HomeScreen />);
+    const toggle = screen.getByRole("button", { name: "Engine settings" });
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByRole("region", { name: "Model settings" }).hasAttribute("hidden")).toBe(false);
+    expect(screen.getByRole("region", { name: "Audio pane" })).not.toBeNull();
+    expect(screen.getByRole("region", { name: "Text pane" })).not.toBeNull();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.getByRole("region", { name: "Model settings", hidden: true }).hasAttribute("hidden")).toBe(true);
+    fireEvent.click(toggle);
+    fireEvent.pointerDown(screen.getByRole("region", { name: "Audio pane" }));
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
   });
 
   it("changes Whisper model and language", () => {
     const stt = transcribe();
     (useTranscription as jest.Mock).mockReturnValue(stt);
     render(<HomeScreen />);
+    fireEvent.click(screen.getByRole("button", { name: "Engine settings" }));
     fireEvent.change(screen.getByLabelText("Whisper model"), {
       target: { value: "Xenova/whisper-base" },
     });
@@ -112,6 +130,7 @@ describe("bidirectional HomeScreen", () => {
     (useSpeechSynthesis as jest.Mock).mockReturnValue(tts);
     render(<HomeScreen />);
     fireEvent.click(screen.getByRole("button", { name: "Text → Audio (TTS)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Engine settings" }));
     fireEvent.change(screen.getByLabelText("TTS mode"), { target: { value: "advanced" } });
     expect(screen.getByText(/Pocket TTS \(English voice cloning\)/)).not.toBeNull();
     fireEvent.change(screen.getByRole("textbox", { name: "Text" }), { target: { value: "Hello" } });
