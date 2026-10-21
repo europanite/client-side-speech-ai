@@ -16,7 +16,7 @@ const App: React.FC = () => {
                 <h1 className="app-title">Client-Side Speech AI</h1>
               </a>
               <p className="app-subtitle">
-                Text to Speech, Speech to Text in your browser. Not setup. No account. No payment. 
+                Text to Speech, Speech to Text in your browser. Not installation. No account. No payment. 
               </p>
             </div>
           </div>
