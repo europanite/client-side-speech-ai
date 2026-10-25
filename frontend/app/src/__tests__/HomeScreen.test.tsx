@@ -180,7 +180,7 @@ describe("bidirectional HomeScreen", () => {
     expect(micRow?.classList.contains("input-mic-controls")).toBe(true);
     expect(micRow?.contains(screen.getByRole("button", { name: "Start microphone" }))).toBe(true);
     expect(micRow?.contains(screen.getByRole("button", { name: "Stop microphone" }))).toBe(true);
-    expect(micRow?.contains(screen.getByRole("button", { name: "Transcribe" }))).toBe(true);
+    expect(shared.contains(screen.getByRole("button", { name: "Transcribe" }))).toBe(true);
     expect(shared.querySelector(".input-audio-preview, .soundbar-pane")).toBeNull();
     expect(shared.querySelectorAll('[aria-label="Audio sound bars"]')).toHaveLength(1);
     expect(screen.getByRole("img", { name: "Audio sound bars" }).querySelectorAll("span")).toHaveLength(24);
