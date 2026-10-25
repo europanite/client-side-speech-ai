@@ -26,7 +26,7 @@ export function TextPane({
         readOnly={mode === "stt" || busy}
         onChange={(event) => onChange(event.currentTarget.value)}
         placeholder={mode === "stt"
-          ? "The transcript will appear here after choosing a media file or microphone."
+          ? "Select an audio file and press Transcribe audio, or start the microphone."
           : "Type or paste text to turn into audio."} />
       <div className="button-row right">
         {mode === "tts" && (

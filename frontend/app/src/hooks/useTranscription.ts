@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { env, pipeline, WhisperTextStreamer } from "@huggingface/transformers";
 import { createStreamTranscriptionWorker } from "../workers/createStreamTranscriptionWorker";
+import { sampleLiveWaveform } from "../services/liveWaveform";
 
 export type TranscriptionStatus =
   | "idle"
@@ -319,7 +320,7 @@ export interface UseTranscriptionResult {
   transcribeFile: (file: File) => Promise<void>;
   isStreaming: boolean;
   isStreamStarting: boolean;
-  audioLevel: number;
+  liveWaveform: number[];
   startStream: (stream: MediaStream) => Promise<void>;
   startMicrophone: () => Promise<void>;
   stopStream: () => void;
@@ -333,7 +334,7 @@ export function useTranscription(): UseTranscriptionResult {
   const [progress, setProgress] = useState<TranscriptionProgress | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
   const [isStreamStarting, setIsStreamStarting] = useState(false);
-  const [audioLevel, setAudioLevel] = useState(0);
+  const [liveWaveform, setLiveWaveform] = useState<number[]>([]);
   const [selectedModelIdState, setSelectedModelIdState] = useState<string>(
     DEFAULT_WHISPER_MODEL_ID
   );
@@ -537,7 +538,7 @@ export function useTranscription(): UseTranscriptionResult {
     const runtime = streamRuntimeRef.current;
     streamRuntimeRef.current = null;
     runtime?.cancel();
-    setAudioLevel(0);
+    setLiveWaveform([]);
     setIsStreamStarting(false);
     setIsStreaming(false);
     setProgress(null);
@@ -667,7 +668,7 @@ export function useTranscription(): UseTranscriptionResult {
       const sessionId = streamSessionIdRef.current + 1;
       streamSessionIdRef.current = sessionId;
       setIsStreamStarting(true);
-      setAudioLevel(0);
+      setLiveWaveform([]);
       setError(null);
       setTranscript("");
       setStatus("starting-stream");
@@ -695,8 +696,7 @@ export function useTranscription(): UseTranscriptionResult {
         let chunkId = 0;
         let finishPromise: Promise<void> | null = null;
         let resolveFinish: (() => void) | null = null;
-        let lastLevelUpdate = 0;
-        let smoothedLevel = 0;
+        let lastWaveformUpdate = 0;
 
         const selectedLanguage = TRANSCRIPTION_LANGUAGE_OPTIONS.find(
           (option) => option.id === selectedLanguageIdState
@@ -747,7 +747,7 @@ export function useTranscription(): UseTranscriptionResult {
             streamFailed = true;
             stopRequested = true;
             cleanupGraph();
-            setAudioLevel(0);
+            setLiveWaveform([]);
             setIsStreaming(false);
             setError(message.error);
             setStatus("error");
@@ -789,24 +789,16 @@ export function useTranscription(): UseTranscriptionResult {
           postPcm(nativePcm);
         };
 
-        const updateAudioLevel = (pcm: Float32Array) => {
+        const updateLiveWaveform = (pcm: Float32Array) => {
           const now = performance.now();
-          if (now - lastLevelUpdate < 50) return;
-          lastLevelUpdate = now;
-          let sumSquares = 0;
-          for (let i = 0; i < pcm.length; i += 1) {
-            sumSquares += pcm[i] * pcm[i];
-          }
-          const rms = Math.sqrt(sumSquares / Math.max(1, pcm.length));
-          const db = 20 * Math.log10(Math.max(rms, 1e-6));
-          const normalized = Math.max(0, Math.min(1, (db + 60) / 60));
-          smoothedLevel = smoothedLevel * 0.65 + normalized * 0.35;
-          setAudioLevel(smoothedLevel);
+          if (now - lastWaveformUpdate < 50) return;
+          lastWaveformUpdate = now;
+          setLiveWaveform(sampleLiveWaveform(pcm));
         };
 
         const handlePcm = (pcm: Float32Array) => {
           if (cancelled || stopRequested || pcm.length === 0) return;
-          updateAudioLevel(pcm);
+          updateLiveWaveform(pcm);
           capturedChunks.push(pcm);
           capturedSampleCount += pcm.length;
           flushCapturedAudio(false);
@@ -881,7 +873,7 @@ registerProcessor("whisper-pcm-capture", WhisperPcmCaptureProcessor);
             capturedChunks = [];
             capturedSampleCount = 0;
             cleanupGraph();
-            setAudioLevel(0);
+            setLiveWaveform([]);
             worker.postMessage({ type: "cancel-session", sessionId });
             worker.removeEventListener("message", handleWorkerMessage);
             resolveFinish?.();
@@ -891,7 +883,7 @@ registerProcessor("whisper-pcm-capture", WhisperPcmCaptureProcessor);
             if (cancelled || stopRequested) return;
             stopRequested = true;
             cleanupGraph();
-            setAudioLevel(0);
+            setLiveWaveform([]);
             flushCapturedAudio(true);
             finishIfDrained();
           },
@@ -917,7 +909,7 @@ registerProcessor("whisper-pcm-capture", WhisperPcmCaptureProcessor);
         if (ownsStream) stream.getTracks().forEach((track) => track.stop());
         if (sessionId !== streamSessionIdRef.current) return;
         setError(e instanceof Error ? e.message : "Failed to start live audio transcription.");
-        setAudioLevel(0);
+        setLiveWaveform([]);
         setIsStreamStarting(false);
         setIsStreaming(false);
         setStatus("error");
@@ -950,7 +942,7 @@ registerProcessor("whisper-pcm-capture", WhisperPcmCaptureProcessor);
     const requestId = streamSessionIdRef.current + 1;
     streamSessionIdRef.current = requestId;
     setIsStreamStarting(true);
-    setAudioLevel(0);
+    setLiveWaveform([]);
     setError(null);
     setStatus("loading-model");
 
@@ -983,7 +975,7 @@ registerProcessor("whisper-pcm-capture", WhisperPcmCaptureProcessor);
       setError(
         e instanceof Error ? e.message : "Microphone permission was denied or unavailable."
       );
-      setAudioLevel(0);
+      setLiveWaveform([]);
       setIsStreamStarting(false);
       setStatus("error");
       setIsStreaming(false);
@@ -1001,7 +993,7 @@ registerProcessor("whisper-pcm-capture", WhisperPcmCaptureProcessor);
     if (!runtime) {
       // Cancels an in-flight worker model load / permission request immediately.
       streamSessionIdRef.current += 1;
-      setAudioLevel(0);
+      setLiveWaveform([]);
       setIsStreamStarting(false);
       setIsStreaming(false);
       setStatus(streamWorkerModelIdRef.current ? "ready" : "idle");
@@ -1010,7 +1002,7 @@ registerProcessor("whisper-pcm-capture", WhisperPcmCaptureProcessor);
 
     // Immediate phase: stop the microphone and update UI before any final ASR wait.
     streamRuntimeRef.current = null;
-    setAudioLevel(0);
+    setLiveWaveform([]);
     setIsStreamStarting(false);
     setIsStreaming(false);
     setStatus("finalizing-stream");
@@ -1026,7 +1018,7 @@ registerProcessor("whisper-pcm-capture", WhisperPcmCaptureProcessor);
     cancelActiveStream();
     setTranscript("");
     setError(null);
-    setAudioLevel(0);
+    setLiveWaveform([]);
     setProgress(null);
     setStatus("idle");
   }, [cancelActiveStream]);
@@ -1056,7 +1048,7 @@ registerProcessor("whisper-pcm-capture", WhisperPcmCaptureProcessor);
     transcribeFile,
     isStreaming,
     isStreamStarting,
-    audioLevel,
+    liveWaveform,
     startStream,
     startMicrophone,
     stopStream,

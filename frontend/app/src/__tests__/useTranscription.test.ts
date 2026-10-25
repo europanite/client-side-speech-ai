@@ -29,7 +29,7 @@ describe("useTranscription hook", () => {
     expect(typeof result.current.transcribeFile).toBe("function");
     expect(result.current.isStreaming).toBe(false);
     expect(result.current.isStreamStarting).toBe(false);
-    expect(result.current.audioLevel).toBe(0);
+    expect(result.current.liveWaveform).toEqual([]);
     expect(typeof result.current.startStream).toBe("function");
     expect(typeof result.current.startMicrophone).toBe("function");
     expect(typeof result.current.stopStream).toBe("function");

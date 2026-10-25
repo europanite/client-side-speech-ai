@@ -25,7 +25,7 @@ const transcribe = (): MockTranscription => ({
   ],
   selectedLanguageId: "english", setSelectedLanguageId: jest.fn(),
   transcribeFile: jest.fn().mockResolvedValue(undefined),
-  isStreaming: false, isStreamStarting: false, audioLevel: 0,
+  isStreaming: false, isStreamStarting: false, liveWaveform: [],
   startStream: jest.fn(), startMicrophone: jest.fn().mockResolvedValue(undefined),
   stopStream: jest.fn(), reset: jest.fn(),
 });
@@ -44,11 +44,76 @@ const synthesize = (): MockSynthesis => ({
 });
 
 describe("bidirectional HomeScreen", () => {
+  const originalFetch = globalThis.fetch;
+  const originalCreateObjectURL = URL.createObjectURL;
+  const originalRevokeObjectURL = URL.revokeObjectURL;
+
   beforeEach(() => {
     (useTranscription as jest.Mock).mockReturnValue(transcribe());
     (useSpeechSynthesis as jest.Mock).mockReturnValue(synthesize());
+    // Other tests do not need to complete the automatic startup fetch.
+    globalThis.fetch = jest.fn(() => new Promise<Response>(() => {}));
+    URL.createObjectURL = jest.fn(() => "blob:local-preview");
+    URL.revokeObjectURL = jest.fn();
   });
-  afterEach(() => jest.clearAllMocks());
+  afterEach(() => {
+    jest.clearAllMocks();
+    globalThis.fetch = originalFetch;
+    if (originalCreateObjectURL) URL.createObjectURL = originalCreateObjectURL;
+    else Reflect.deleteProperty(URL, "createObjectURL");
+    if (originalRevokeObjectURL) URL.revokeObjectURL = originalRevokeObjectURL;
+    else Reflect.deleteProperty(URL, "revokeObjectURL");
+  });
+
+  it("loads and previews the sample WAV without starting Whisper on mount", async () => {
+    const stt = transcribe();
+    (useTranscription as jest.Mock).mockReturnValue(stt);
+    (globalThis.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      blob: jest.fn().mockResolvedValue(new Blob(["sample"], { type: "audio/wav" })),
+    });
+
+    render(<HomeScreen />);
+
+    await waitFor(() => expect(screen.getByText("speech.wav")).not.toBeNull());
+    expect(stt.transcribeFile).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Transcribe audio" })).not.toHaveProperty("disabled", true);
+    const playback = screen.getByLabelText("Selected audio playback") as HTMLAudioElement;
+    expect(playback.controls).toBe(true);
+    await waitFor(() => expect(screen.getByLabelText("Selected audio playback").getAttribute("src"))
+      .toBe("blob:local-preview"));
+    expect(screen.getAllByLabelText("Sound bar pane")).toHaveLength(1);
+    expect(screen.getByText("FILE PLAYBACK")).not.toBeNull();
+    expect(screen.queryByLabelText("Waveform pane")).toBeNull();
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      new URL("speech.wav", document.baseURI).toString(),
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Transcribe audio" }));
+    await waitFor(() => expect(stt.transcribeFile).toHaveBeenCalledTimes(1));
+    const file = (stt.transcribeFile as jest.Mock).mock.calls[0][0] as File;
+    expect(file.name).toBe("speech.wav");
+  });
+
+  it("does not replace a manually chosen file with a late sample response", async () => {
+    let resolveFetch!: (response: unknown) => void;
+    (globalThis.fetch as jest.Mock).mockImplementation(
+      () => new Promise((resolve) => { resolveFetch = resolve; })
+    );
+    const stt = transcribe();
+    (useTranscription as jest.Mock).mockReturnValue(stt);
+
+    render(<HomeScreen />);
+    const manual = new File(["manual"], "my-audio.wav", { type: "audio/wav" });
+    fireEvent.change(screen.getByLabelText("Media file"), { target: { files: [manual] } });
+    resolveFetch({ ok: true, blob: async () => new Blob(["sample"]) });
+
+    expect(stt.transcribeFile).not.toHaveBeenCalled();
+    expect(screen.getByText("my-audio.wav")).not.toBeNull();
+    expect(screen.queryByText("speech.wav")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Transcribe audio" }));
+    expect(stt.transcribeFile).toHaveBeenCalledWith(manual);
+  });
 
   it("renders shared audio/text panes with STT by default", () => {
     render(<HomeScreen />);
@@ -91,7 +156,7 @@ describe("bidirectional HomeScreen", () => {
     expect(stt.setSelectedLanguageId).toHaveBeenCalledWith("japanese");
   });
 
-  it("retains accepted video file types and calls transcribeFile", async () => {
+  it("retains accepted video file types and defers transcription until inference", async () => {
     const stt = transcribe();
     (useTranscription as jest.Mock).mockReturnValue(stt);
     render(<HomeScreen />);
@@ -99,18 +164,45 @@ describe("bidirectional HomeScreen", () => {
     expect(input.accept).toContain("video/mp4");
     const file = new File(["sample"], "clip.mp4", { type: "video/mp4" });
     fireEvent.change(input, { target: { files: [file] } });
+    expect(stt.transcribeFile).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Transcribe audio" }));
     await waitFor(() => expect(stt.transcribeFile).toHaveBeenCalledWith(file));
     expect(screen.getByText("clip.mp4")).not.toBeNull();
   });
 
-  it("starts, stops and meters live microphone input", () => {
+  it("uses the same sound-bar panel for file playback and live microphone", () => {
     const stt = { ...transcribe(), status: "streaming" as const,
-      isStreaming: true, audioLevel: 0.42 };
+      isStreaming: true, liveWaveform: [-0.5, 0, 0.5, 0] };
     (useTranscription as jest.Mock).mockReturnValue(stt);
-    render(<HomeScreen />);
+    const view = render(<HomeScreen />);
+    const shared = screen.getByLabelText("Shared audio input panel");
+    expect(screen.getAllByLabelText("Sound bar pane")).toHaveLength(1);
+    expect(screen.getByRole("img", { name: "Audio sound bars" }).querySelectorAll("span")).toHaveLength(24);
+    expect(screen.getByText("● LIVE MIC")).not.toBeNull();
+    expect(screen.queryByLabelText("Selected audio playback")).toBeNull();
+    expect(screen.queryByText("Mic level")).toBeNull();
+    expect(screen.queryByRole("meter", { name: "Microphone input level" })).toBeNull();
+    expect(screen.queryByLabelText("Waveform pane")).toBeNull();
+    expect(shared.querySelector("svg")).toBeNull();
+
+    const idle = transcribe();
+    (useTranscription as jest.Mock).mockReturnValue(idle);
+    view.rerender(<HomeScreen />);
+    fireEvent.change(screen.getByLabelText("Media file"), {
+      target: { files: [new File(["wav"], "manual.wav", { type: "audio/wav" })] },
+    });
+    expect(screen.getByLabelText("Shared audio input panel")).toBe(shared);
+    expect(screen.getAllByLabelText("Sound bar pane")).toHaveLength(1);
+    expect(screen.getByText("FILE PLAYBACK")).not.toBeNull();
+    expect(screen.getByLabelText("Selected audio playback")).not.toBeNull();
+    fireEvent.click(screen.getByText("Start microphone"));
+    expect(idle.startMicrophone).toHaveBeenCalledTimes(1);
+    (useTranscription as jest.Mock).mockReturnValue(stt);
+    view.rerender(<HomeScreen />);
+    expect(screen.getByLabelText("Shared audio input panel")).toBe(shared);
+    expect(screen.getByText("● LIVE MIC")).not.toBeNull();
     fireEvent.click(screen.getByText("Stop microphone"));
     expect(stt.stopStream).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole("meter", { name: "Microphone input level" }).getAttribute("aria-valuenow")).toBe("42");
   });
 
   it("switches to TTS and reuses the STT transcript as editable text", () => {
@@ -119,7 +211,7 @@ describe("bidirectional HomeScreen", () => {
     (useTranscription as jest.Mock).mockReturnValue(stt);
     (useSpeechSynthesis as jest.Mock).mockReturnValue(tts);
     render(<HomeScreen />);
-    fireEvent.click(screen.getByRole("button", { name: "Text → Audio (TTS)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Text to Speech" }));
     const editor = screen.getByRole("textbox", { name: "Text" }) as HTMLTextAreaElement;
     expect(editor.readOnly).toBe(false);
     expect(editor.value).toBe("Hello from STT");
@@ -131,7 +223,7 @@ describe("bidirectional HomeScreen", () => {
     const tts = synthesize();
     (useSpeechSynthesis as jest.Mock).mockReturnValue(tts);
     render(<HomeScreen />);
-    fireEvent.click(screen.getByRole("button", { name: "Text → Audio (TTS)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Text to Speech" }));
     fireEvent.click(screen.getByRole("button", { name: "Engine settings" }));
     fireEvent.change(screen.getByLabelText("TTS mode"), { target: { value: "advanced" } });
     expect(screen.getByText(/Pocket TTS \(English voice cloning\)/)).not.toBeNull();
@@ -150,7 +242,7 @@ describe("bidirectional HomeScreen", () => {
       ...synthesize(), audioUrl: "blob:https://local/speech", status: "done",
     });
     render(<HomeScreen />);
-    fireEvent.click(screen.getByText("Text → Audio (TTS)"));
+    fireEvent.click(screen.getByText("Text to Speech"));
     expect(screen.getByLabelText("Generated speech")).not.toBeNull();
     const link = screen.getByRole("link", { name: "Download WAV" }) as HTMLAnchorElement;
     expect(link.download).toBe("speech.wav");
@@ -160,7 +252,7 @@ describe("bidirectional HomeScreen", () => {
     const stt = { ...transcribe(), status: "loading-model" as const, isStreamStarting: true };
     (useTranscription as jest.Mock).mockReturnValue(stt);
     render(<HomeScreen />);
-    const next = screen.getByRole("button", { name: "Text → Audio (TTS)" }) as HTMLButtonElement;
+    const next = screen.getByRole("button", { name: "Text to Speech" }) as HTMLButtonElement;
     expect(next.disabled).toBe(true);
     expect((screen.getByRole("button", { name: "Engine settings" }) as HTMLButtonElement).disabled).toBe(true);
     fireEvent.click(next);
@@ -182,11 +274,11 @@ describe("bidirectional HomeScreen", () => {
     const tts = synthesize();
     (useSpeechSynthesis as jest.Mock).mockReturnValue(tts);
     const view = render(<HomeScreen />);
-    fireEvent.click(screen.getByRole("button", { name: "Text → Audio (TTS)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Text to Speech" }));
     (useSpeechSynthesis as jest.Mock).mockReturnValue({ ...tts, status: "synthesizing" });
     view.rerender(<HomeScreen />);
 
-    expect((screen.getByRole("button", { name: "Audio → Text (STT)" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Speech to Text" }) as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByRole("button", { name: "Engine settings" }) as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByRole("button", { name: "Clear" }) as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByRole("textbox", { name: "Text" }) as HTMLTextAreaElement).readOnly).toBe(true);

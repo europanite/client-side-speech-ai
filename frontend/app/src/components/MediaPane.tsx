@@ -1,4 +1,5 @@
 import { useRef, type ChangeEvent } from "react";
+import { AudioInputPreview } from "./AudioInputPreview";
 
 export const MEDIA_ACCEPT =
   "audio/*,video/mp4,video/webm,video/ogg,video/x-matroska,video/matroska,.mp4,.webm,.ogv,.m4v,.mkv";
@@ -6,23 +7,24 @@ export const MEDIA_ACCEPT =
 export interface MediaPaneProps {
   mode: "stt" | "tts";
   fileName: string;
+  inputFile: File | null;
   busy: boolean;
   streaming: boolean;
   streamStarting: boolean;
   finalizing: boolean;
-  audioLevel: number;
+  liveWaveform: number[];
   audioUrl: string | null;
   onFile: (file: File) => void;
+  onTranscribe: () => void;
   onStartMicrophone: () => void;
   onStopMicrophone: () => void;
 }
 
 export function MediaPane({
-  mode, fileName, busy, streaming, streamStarting, finalizing, audioLevel,
-  audioUrl, onFile, onStartMicrophone, onStopMicrophone,
+  mode, fileName, inputFile, busy, streaming, streamStarting, finalizing, liveWaveform,
+  audioUrl, onFile, onTranscribe, onStartMicrophone, onStopMicrophone,
 }: MediaPaneProps) {
   const fileRef = useRef<HTMLInputElement>(null);
-  const canStop = streamStarting || streaming;
 
   const fileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.currentTarget.files?.[0];
@@ -49,29 +51,15 @@ export function MediaPane({
           </div>
           <input ref={fileRef} type="file" accept={MEDIA_ACCEPT}
             style={{ display: "none" }} aria-label="Media file" disabled={busy} onChange={fileChange} />
-          <div className="button-row">
-            <button type="button" className="btn primary"
-              onClick={onStartMicrophone} disabled={busy}>Start microphone</button>
-            <button type="button" className={canStop ? "btn primary" : "btn secondary"}
-              onClick={onStopMicrophone} disabled={!canStop}>Stop microphone</button>
+          <div className="button-row inference-row">
+            <button type="button" className="btn primary" disabled={busy || !inputFile}
+              onClick={onTranscribe}>Transcribe audio</button>
+            <span className="helper-text">The Whisper model loads only when transcription starts.</span>
           </div>
-          <p className="helper-text">
-            {streaming ? "Live microphone input is active."
-              : streamStarting ? "Preparing microphone input. You can stop now."
-              : finalizing ? "Microphone stopped. Finalizing buffered audio."
-              : "Microphone is stopped."}
-          </p>
-          <div className="audio-level-row" aria-live="off">
-            <span className="audio-level-label">Mic level</span>
-            <div className="audio-level-meter" role="meter"
-              aria-label="Microphone input level" aria-valuemin={0} aria-valuemax={100}
-              aria-valuenow={Math.round(audioLevel * 100)}>
-              <div className="audio-level-fill" style={{ width: `${Math.round(audioLevel * 100)}%` }} />
-            </div>
-            <span className="audio-level-value">
-              {streaming ? `${Math.round(audioLevel * 100)}%` : "--"}
-            </span>
-          </div>
+          <AudioInputPreview file={inputFile} liveWaveform={liveWaveform}
+            streaming={streaming} starting={streamStarting} finalizing={finalizing}
+            busy={busy} onStartMicrophone={onStartMicrophone}
+            onStopMicrophone={onStopMicrophone} />
         </>
       ) : (
         <>
