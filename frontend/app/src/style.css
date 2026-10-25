@@ -1111,8 +1111,32 @@ body {
   .button-row { flex-wrap: wrap; }
 }
 
+/* Button press feedback: a small physical dip accompanies the audio click. */
+.btn, .direction-tab, .engine-settings-toggle {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn:active:not(:disabled),
+.direction-tab:active:not(:disabled),
+.engine-settings-toggle:active:not(:disabled) {
+  transform: translateY(2px) scale(0.985);
+  filter: brightness(0.91);
+  box-shadow: inset 0 3px 9px rgba(0, 0, 0, 0.3);
+}
+
+.btn:disabled, .direction-tab:disabled, .engine-settings-toggle:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .direction-tab, .btn, .select-input, .transcript-box, .engine-settings-toggle { transition: none; }
-  .btn:hover:not(:disabled) { transform: none; }
+  .btn:hover:not(:disabled),
+  .btn:active:not(:disabled),
+  .direction-tab:active:not(:disabled),
+  .engine-settings-toggle:active:not(:disabled) { transform: none; }
   .brand-symbol { animation: none; }
 }

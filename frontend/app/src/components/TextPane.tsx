@@ -23,7 +23,7 @@ export function TextPane({
         {mode === "stt" ? "Transcribed text" : "Text to synthesize"}
       </p>
       <textarea className="transcript-box" aria-label="Text" value={value}
-        readOnly={mode === "stt"}
+        readOnly={mode === "stt" || busy}
         onChange={(event) => onChange(event.currentTarget.value)}
         placeholder={mode === "stt"
           ? "The transcript will appear here after choosing a media file or microphone."
@@ -40,7 +40,7 @@ export function TextPane({
           )
         )}
         <button type="button" className="btn secondary" onClick={onClear}
-          disabled={!canClear}>Clear</button>
+          disabled={busy || !canClear}>Clear</button>
       </div>
     </section>
   );

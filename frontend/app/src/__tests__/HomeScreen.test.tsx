@@ -2,9 +2,11 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import HomeScreen from "../screens/HomeScreen";
 import { useTranscription } from "../hooks/useTranscription";
 import { useSpeechSynthesis } from "../hooks/useSpeechSynthesis";
+import { playClickSound } from "../services/clickSound";
 
 jest.mock("../hooks/useTranscription");
 jest.mock("../hooks/useSpeechSynthesis");
+jest.mock("../services/clickSound");
 
 type MockTranscription = ReturnType<typeof useTranscription>;
 type MockSynthesis = ReturnType<typeof useSpeechSynthesis>;
@@ -154,12 +156,44 @@ describe("bidirectional HomeScreen", () => {
     expect(link.download).toBe("speech.wav");
   });
 
-  it("stops a starting microphone when switching to TTS", () => {
+  it("locks navigation during microphone startup but still allows Stop", () => {
     const stt = { ...transcribe(), status: "loading-model" as const, isStreamStarting: true };
     (useTranscription as jest.Mock).mockReturnValue(stt);
     render(<HomeScreen />);
-    fireEvent.click(screen.getByText("Text → Audio (TTS)"));
+    const next = screen.getByRole("button", { name: "Text → Audio (TTS)" }) as HTMLButtonElement;
+    expect(next.disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Engine settings" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(next);
+    expect((screen.getByRole("textbox", { name: "Text" }) as HTMLTextAreaElement).readOnly).toBe(true);
+    expect(stt.stopStream).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Stop microphone" }));
     expect(stt.stopStream).toHaveBeenCalledTimes(1);
+  });
+
+  it("plays a click for enabled buttons but not disabled buttons", () => {
+    render(<HomeScreen />);
+    fireEvent.click(screen.getByRole("button", { name: "Engine settings" }));
+    expect(playClickSound).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "Clear" }));
+    expect(playClickSound).toHaveBeenCalledTimes(1);
+  });
+
+  it("disables competing actions during TTS but preserves Cancel", () => {
+    const tts = synthesize();
+    (useSpeechSynthesis as jest.Mock).mockReturnValue(tts);
+    const view = render(<HomeScreen />);
+    fireEvent.click(screen.getByRole("button", { name: "Text → Audio (TTS)" }));
+    (useSpeechSynthesis as jest.Mock).mockReturnValue({ ...tts, status: "synthesizing" });
+    view.rerender(<HomeScreen />);
+
+    expect((screen.getByRole("button", { name: "Audio → Text (STT)" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Engine settings" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Clear" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("textbox", { name: "Text" }) as HTMLTextAreaElement).readOnly).toBe(true);
+    const cancel = screen.getByRole("button", { name: "Cancel result" }) as HTMLButtonElement;
+    expect(cancel.disabled).toBe(false);
+    fireEvent.click(cancel);
+    expect(tts.cancel).toHaveBeenCalledTimes(1);
   });
 
   it("keeps progress and Clear behavior in STT", () => {

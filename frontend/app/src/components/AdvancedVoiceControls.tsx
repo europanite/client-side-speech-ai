@@ -18,6 +18,7 @@ export function AdvancedVoiceControls({
   const [selectedId, setSelectedId] = useState("");
   const [profileName, setProfileName] = useState("My voice");
   const [recording, setRecording] = useState(false);
+  const [pendingAction, setPendingAction] = useState<"record" | "save" | "remove" | null>(null);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [sampleInfo, setSampleInfo] = useState("");
   const [message, setMessage] = useState("");
@@ -25,6 +26,7 @@ export function AdvancedVoiceControls({
   const stopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const clockRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const controlsBusy = disabled || recording || pendingAction !== null;
 
   useEffect(() => {
     let mounted = true;
@@ -70,6 +72,8 @@ export function AdvancedVoiceControls({
   };
 
   const record = async () => {
+    if (controlsBusy) return;
+    setPendingAction("record");
     setMessage("");
     try {
       if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
@@ -114,6 +118,8 @@ export function AdvancedVoiceControls({
       streamRef.current?.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
       setMessage(reason instanceof Error ? reason.message : "Could not start recording.");
+    } finally {
+      setPendingAction(null);
     }
   };
 
@@ -123,7 +129,8 @@ export function AdvancedVoiceControls({
   };
 
   const save = async () => {
-    if (!referenceFile) return;
+    if (controlsBusy || !referenceFile || !profileName.trim()) return;
+    setPendingAction("save");
     try {
       const saved = await saveVoiceProfile(profileName, referenceFile);
       setProfiles((items) => [...items, saved]);
@@ -131,11 +138,14 @@ export function AdvancedVoiceControls({
       setMessage("Voice saved locally in this browser.");
     } catch (reason) {
       setMessage(reason instanceof Error ? reason.message : "Could not save voice.");
+    } finally {
+      setPendingAction(null);
     }
   };
 
   const remove = async () => {
-    if (!selectedId) return;
+    if (controlsBusy || !selectedId) return;
+    setPendingAction("remove");
     try {
       await deleteVoiceProfile(selectedId);
       setProfiles((items) => items.filter((p) => p.id !== selectedId));
@@ -144,6 +154,8 @@ export function AdvancedVoiceControls({
       setMessage("Saved voice deleted from this browser.");
     } catch (reason) {
       setMessage(reason instanceof Error ? reason.message : "Could not delete voice.");
+    } finally {
+      setPendingAction(null);
     }
   };
 
@@ -155,12 +167,12 @@ export function AdvancedVoiceControls({
       </p>
       <label className="field-label" htmlFor="advanced-voice-file">Reference voice (audio file)</label>
       <input id="advanced-voice-file" type="file" accept="audio/*,.wav,.mp3,.m4a,.ogg,.webm"
-        disabled={disabled || recording} onChange={(event) => chooseFile(event.currentTarget.files?.[0])} />
+        disabled={controlsBusy} onChange={(event) => chooseFile(event.currentTarget.files?.[0])} />
       <div className="button-row">
         {recording ? (
           <button type="button" className="btn secondary" onClick={stopRecording}>Stop recording ({recordingSeconds.toFixed(1)}s / 10s)</button>
         ) : (
-          <button type="button" className="btn secondary" disabled={disabled} onClick={() => { void record(); }}>
+          <button type="button" className="btn secondary" disabled={controlsBusy} onClick={() => { void record(); }}>
             Record my voice
           </button>
         )}
@@ -168,7 +180,7 @@ export function AdvancedVoiceControls({
       </div>
       {sampleInfo && <p className="helper-text" role="status">{sampleInfo}</p>}
       <label className="field-label" htmlFor="saved-voice-select">Saved voices (this browser only)</label>
-      <select className="select-input" id="saved-voice-select" value={selectedId} disabled={disabled || recording}
+      <select className="select-input" id="saved-voice-select" value={selectedId} disabled={controlsBusy}
         onChange={(event) => {
           const id = event.target.value;
           setSelectedId(id);
@@ -181,11 +193,11 @@ export function AdvancedVoiceControls({
       </select>
       <div className="button-row advanced-save-row">
         <input className="select-input" aria-label="Voice profile name" maxLength={80}
-          value={profileName} disabled={disabled || recording}
+          value={profileName} disabled={controlsBusy}
           onChange={(event) => setProfileName(event.target.value)} />
-        <button type="button" className="btn secondary" disabled={disabled || recording || !referenceFile || !profileName.trim()}
+        <button type="button" className="btn secondary" disabled={controlsBusy || !referenceFile || !profileName.trim()}
           onClick={() => { void save(); }}>Save locally</button>
-        <button type="button" className="btn secondary" disabled={disabled || recording || !selectedId}
+        <button type="button" className="btn secondary" disabled={controlsBusy || !selectedId}
           onClick={() => { void remove(); }}>Delete saved</button>
       </div>
       {message && <p className="helper-text" role="status">{message}</p>}
