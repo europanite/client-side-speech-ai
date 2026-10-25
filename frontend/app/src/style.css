@@ -328,50 +328,6 @@ body {
   color: #4b5563;
 }
 
-/* Live microphone level */
-
-.audio-level-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 8px;
-}
-
-.audio-level-label,
-.audio-level-value {
-  flex: 0 0 auto;
-  font-size: 12px;
-  color: #374151;
-}
-
-.audio-level-label {
-  width: 56px;
-}
-
-.audio-level-value {
-  width: 34px;
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-
-.audio-level-meter {
-  position: relative;
-  flex: 1;
-  height: 10px;
-  overflow: hidden;
-  border: 1px solid #9ca3af;
-  border-radius: 9999px;
-  background-color: #e5e7eb;
-}
-
-.audio-level-fill {
-  height: 100%;
-  min-width: 0;
-  border-radius: inherit;
-  background-color: #111827;
-  transition: width 50ms linear;
-}
-
 /* Bidirectional speech workspace: fixed Audio (left), Text (right) */
 .app-shell { max-width: 1160px; }
 .direction-tabs { display: flex; gap: 8px; }
@@ -992,18 +948,14 @@ body {
 .workspace-pane .button-row { row-gap: 9px; }
 .button-row { gap: 9px; }
 
-.audio-level-label,
-.audio-level-value,
 .progress-meta { color: #c9bedc; }
 
-.audio-level-meter,
 .progress-track {
   border: 1px solid rgba(192, 135, 255, 0.48);
   background: #090512;
   box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.55);
 }
 
-.audio-level-fill { background: #ffda55; box-shadow: 0 0 13px rgba(255, 218, 85, 0.45); }
 .progress-fill { background: #a94dff; box-shadow: 0 0 15px rgba(184, 68, 255, 0.5); }
 
 .spinner { border-color: rgba(193, 158, 245, 0.22); border-top-color: var(--gold); }
@@ -1033,6 +985,56 @@ body {
 }
 
 .audio-player { accent-color: var(--purple); }
+.input-audio-preview {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid rgba(186, 122, 255, 0.4);
+  border-radius: 13px;
+  background: #100b1a;
+}
+.input-audio-preview .audio-player { margin: 0 0 15px; }
+.input-mic-controls { margin: 0; }
+.input-mic-status { margin: 8px 0 12px; }
+.soundbar-pane { min-width: 0; }
+.soundbar-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+  color: #e9d7ff;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+}
+.soundbar-heading span:last-child { color: #a996c4; }
+.soundbar-visual {
+  display: flex;
+  align-items: end;
+  justify-content: space-around;
+  gap: 4px;
+  width: 100%;
+  height: 110px;
+  padding: 12px 10px;
+  border-radius: 8px;
+  background: #090512;
+}
+.soundbar-column {
+  flex: 1 1 0;
+  max-width: 15px;
+  min-height: 4px;
+  border-radius: 4px 4px 1px 1px;
+  background: linear-gradient(0deg, #8e4bea, #c78aff 55%, #ffda55);
+  box-shadow: 0 0 8px rgba(183, 115, 255, 0.18);
+  transition: height 65ms linear;
+}
+.soundbar-live { color: #ffda55 !important; }
+.soundbar-caption {
+  margin: 8px 0 0;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+.inference-row { align-items: center; margin-top: 12px; }
+.inference-row .helper-text { margin: 0; flex: 1 1 170px; font-size: 11px; }
 .audio-download { align-items: center; justify-content: center; }
 .footer-note { max-width: 100%; margin-top: 2px; font-size: 11px; line-height: 1.65; }
 

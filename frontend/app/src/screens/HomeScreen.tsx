@@ -8,18 +8,22 @@ import { AdvancedVoiceControls } from "../components/AdvancedVoiceControls";
 import { playClickSound } from "../services/clickSound";
 
 type Direction = "stt" | "tts";
+const DEFAULT_SAMPLE_FILE = "speech.wav";
 
 const HomeScreen = () => {
   const transcription = useTranscription();
   const speech = useSpeechSynthesis();
   const [mode, setMode] = useState<Direction>("stt");
   const [draftText, setDraftText] = useState("");
-  const [selectedFileName, setSelectedFileName] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [ttsMode, setTtsMode] = useState<"standard" | "advanced">("standard");
   const [referenceFile, setReferenceFile] = useState<File | null>(null);
+  const [sampleLoadError, setSampleLoadError] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsMenuRef = useRef<HTMLDivElement>(null);
   const settingsButtonRef = useRef<HTMLButtonElement>(null);
+  const sampleLoadControllerRef = useRef<AbortController | null>(null);
+  const sampleOverriddenRef = useRef(false);
 
   useEffect(() => {
     if (!settingsOpen) return;
@@ -46,8 +50,40 @@ const HomeScreen = () => {
     status, error, transcript, progress, availableModels, selectedModelId,
     setSelectedModelId, availableLanguages, selectedLanguageId,
     setSelectedLanguageId, transcribeFile, isStreaming, isStreamStarting,
-    audioLevel, startMicrophone, stopStream, reset,
+    liveWaveform, startMicrophone, stopStream, reset,
   } = transcription;
+
+  useEffect(() => {
+    if (sampleOverriddenRef.current) return;
+    const controller = new AbortController();
+    sampleLoadControllerRef.current = controller;
+
+    const loadSample = async () => {
+      try {
+        // document.baseURI also resolves correctly under a GitHub Pages subpath.
+        const url = new URL(DEFAULT_SAMPLE_FILE, document.baseURI);
+        const response = await fetch(url.toString(), { signal: controller.signal });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const blob = await response.blob();
+        if (controller.signal.aborted || sampleOverriddenRef.current) return;
+        const file = new File([blob], DEFAULT_SAMPLE_FILE, { type: "audio/wav" });
+        setSelectedFile(file);
+      } catch (cause) {
+        if (controller.signal.aborted || sampleOverriddenRef.current) return;
+        console.error("Failed to load the default sample", cause);
+        setSampleLoadError("Could not load the sample audio. Choose your own media file.");
+      }
+    };
+
+    void loadSample();
+    return () => controller.abort();
+  }, []);
+
+  const overrideSample = () => {
+    sampleOverriddenRef.current = true;
+    sampleLoadControllerRef.current?.abort();
+    setSampleLoadError(null);
+  };
 
   const selectedModel = useMemo(
     () => availableModels.find((m) => m.id === selectedModelId) ?? availableModels[0],
@@ -71,6 +107,7 @@ const HomeScreen = () => {
 
   const switchMode = (next: Direction) => {
     if (processing || next === mode) return;
+    overrideSample();
     if (mode === "stt" && (isStreaming || isStreamStarting)) stopStream();
     if (mode === "tts") speech.cancel();
     if (next === "tts" && transcript) setDraftText(transcript);
@@ -79,21 +116,29 @@ const HomeScreen = () => {
 
   const handleFile = (file: File) => {
     if (processing) return;
-    setSelectedFileName(file.name);
-    void transcribeFile(file);
+    overrideSample();
+    reset();
+    setSelectedFile(file);
+  };
+
+  const handleTranscribe = () => {
+    if (processing || !selectedFile) return;
+    void transcribeFile(selectedFile);
   };
 
   const handleMicrophone = () => {
     if (processing) return;
-    setSelectedFileName("");
+    overrideSample();
+    setSelectedFile(null);
     void startMicrophone();
   };
 
   const clear = () => {
     if (processing) return;
+    overrideSample();
     if (mode === "stt") {
       reset();
-      setSelectedFileName("");
+      setSelectedFile(null);
       setDraftText("");
     } else {
       speech.reset();
@@ -103,7 +148,9 @@ const HomeScreen = () => {
 
   const sttStatusLabel = (() => {
     switch (status) {
-      case "idle": return "Choose a file or start the microphone.";
+      case "idle": return selectedFile
+        ? "Audio loaded. Press Transcribe audio to start Whisper."
+        : "Choose a file or start the microphone.";
       case "loading-model": return `Loading ${selectedModel?.label ?? "Whisper"} locally...`;
       case "ready": return "Whisper is ready.";
       case "starting-stream": return "Preparing microphone capture...";
@@ -144,15 +191,11 @@ const HomeScreen = () => {
       <nav className="direction-tabs" role="group" aria-label="Conversion direction">
         <button type="button" className={`direction-tab ${mode === "stt" ? "active" : ""}`}
           aria-pressed={mode === "stt"} disabled={processing} onClick={() => switchMode("stt")}>
-          <span className="tab-number" aria-hidden="true">01</span>
-          <span>Audio → Text (STT)</span>
-          <span className="tab-arrow" aria-hidden="true">↗</span>
+          <span>Speech to Text</span>
         </button>
         <button type="button" className={`direction-tab ${mode === "tts" ? "active" : ""}`}
           aria-pressed={mode === "tts"} disabled={processing} onClick={() => switchMode("tts")}>
-          <span className="tab-number" aria-hidden="true">02</span>
-          <span>Text → Audio (TTS)</span>
-          <span className="tab-arrow" aria-hidden="true">↗</span>
+          <span>Text to Speech</span>
         </button>
       </nav>
 
@@ -176,7 +219,10 @@ const HomeScreen = () => {
             <div className="field-group">
               <label className="field-label" htmlFor="whisper-model-select">Whisper model</label>
               <select id="whisper-model-select" className="select-input"
-                value={selectedModelId} onChange={(event) => setSelectedModelId(event.target.value)}
+                value={selectedModelId} onChange={(event) => {
+                  overrideSample();
+                  setSelectedModelId(event.target.value);
+                }}
                 disabled={sttBusy}>
                 {availableModels.map((model) => (
                   <option key={model.id} value={model.id}>{model.label} - {model.id}</option>
@@ -187,7 +233,10 @@ const HomeScreen = () => {
             <div className="field-group">
               <label className="field-label" htmlFor="transcription-language-select">Transcription language</label>
               <select id="transcription-language-select" className="select-input"
-                value={selectedLanguageId} onChange={(event) => setSelectedLanguageId(event.target.value)}
+                value={selectedLanguageId} onChange={(event) => {
+                  overrideSample();
+                  setSelectedLanguageId(event.target.value);
+                }}
                 disabled={sttBusy}>
                 {availableLanguages.map((language) => (
                   <option key={language.id} value={language.id}>{language.label}</option>
@@ -232,15 +281,15 @@ const HomeScreen = () => {
       </div>
 
       <div className="workspace-grid">
-        <MediaPane mode={mode} fileName={selectedFileName} busy={sttBusy}
+        <MediaPane mode={mode} fileName={selectedFile?.name ?? ""} inputFile={selectedFile} busy={sttBusy}
           streaming={isStreaming} streamStarting={isStreamStarting}
-          finalizing={status === "finalizing-stream"} audioLevel={audioLevel}
-          audioUrl={speech.audioUrl} onFile={handleFile}
+          finalizing={status === "finalizing-stream"} liveWaveform={liveWaveform}
+          audioUrl={speech.audioUrl} onFile={handleFile} onTranscribe={handleTranscribe}
           onStartMicrophone={handleMicrophone} onStopMicrophone={stopStream} />
         <TextPane mode={mode} value={mode === "stt" ? transcript : draftText}
           busy={ttsBusy}
           canClear={mode === "stt"
-            ? Boolean(transcript || error || selectedFileName || isStreaming || isStreamStarting)
+            ? Boolean(transcript || error || sampleLoadError || selectedFile || isStreaming || isStreamStarting)
             : Boolean(draftText || speech.audioUrl || speech.error || ttsBusy)}
           onChange={(value) => {
             setDraftText(value);
@@ -256,7 +305,7 @@ const HomeScreen = () => {
         busy={mode === "stt" ? sttBusy : ttsBusy}
         progress={mode === "stt" ? progress : speech.progress}
         progressName={mode === "stt" ? "Transcription progress" : "Speech synthesis progress"}
-        error={mode === "stt" ? error : speech.error} />
+        error={mode === "stt" ? error || sampleLoadError : speech.error} />
     </main>
   );
 };
