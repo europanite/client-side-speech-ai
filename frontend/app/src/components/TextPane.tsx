@@ -19,9 +19,6 @@ export function TextPane({
         <h2 className="section-title">Text</h2>
         <span className="pane-role">{mode === "stt" ? "OUTPUT" : "INPUT"}</span>
       </div>
-      <p className="section-description">
-        {mode === "stt" ? "Transcribed text" : "Text to synthesize"}
-      </p>
       <textarea className="transcript-box" aria-label="Text" value={value}
         readOnly={mode === "stt" || busy}
         onChange={(event) => onChange(event.currentTarget.value)}

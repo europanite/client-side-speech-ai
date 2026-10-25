@@ -77,19 +77,18 @@ describe("bidirectional HomeScreen", () => {
 
     await waitFor(() => expect(screen.getByText("speech.wav")).not.toBeNull());
     expect(stt.transcribeFile).not.toHaveBeenCalled();
-    expect(screen.getByRole("button", { name: "Transcribe audio" })).not.toHaveProperty("disabled", true);
+    expect(screen.getByRole("button", { name: "Transcribe" })).not.toHaveProperty("disabled", true);
     const playback = screen.getByLabelText("Selected audio playback") as HTMLAudioElement;
     expect(playback.controls).toBe(true);
     await waitFor(() => expect(screen.getByLabelText("Selected audio playback").getAttribute("src"))
       .toBe("blob:local-preview"));
-    expect(screen.getAllByLabelText("Sound bar pane")).toHaveLength(1);
-    expect(screen.getByText("FILE PLAYBACK")).not.toBeNull();
+    expect(screen.getAllByRole("img", { name: "Audio sound bars" })).toHaveLength(1);
     expect(screen.queryByLabelText("Waveform pane")).toBeNull();
     expect(globalThis.fetch).toHaveBeenCalledWith(
       new URL("speech.wav", document.baseURI).toString(),
       expect.objectContaining({ signal: expect.any(AbortSignal) })
     );
-    fireEvent.click(screen.getByRole("button", { name: "Transcribe audio" }));
+    fireEvent.click(screen.getByRole("button", { name: "Transcribe" }));
     await waitFor(() => expect(stt.transcribeFile).toHaveBeenCalledTimes(1));
     const file = (stt.transcribeFile as jest.Mock).mock.calls[0][0] as File;
     expect(file.name).toBe("speech.wav");
@@ -111,7 +110,7 @@ describe("bidirectional HomeScreen", () => {
     expect(stt.transcribeFile).not.toHaveBeenCalled();
     expect(screen.getByText("my-audio.wav")).not.toBeNull();
     expect(screen.queryByText("speech.wav")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Transcribe audio" }));
+    fireEvent.click(screen.getByRole("button", { name: "Transcribe" }));
     expect(stt.transcribeFile).toHaveBeenCalledWith(manual);
   });
 
@@ -165,20 +164,27 @@ describe("bidirectional HomeScreen", () => {
     const file = new File(["sample"], "clip.mp4", { type: "video/mp4" });
     fireEvent.change(input, { target: { files: [file] } });
     expect(stt.transcribeFile).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Transcribe audio" }));
+    fireEvent.click(screen.getByRole("button", { name: "Transcribe" }));
     await waitFor(() => expect(stt.transcribeFile).toHaveBeenCalledWith(file));
     expect(screen.getByText("clip.mp4")).not.toBeNull();
   });
 
-  it("uses the same sound-bar panel for file playback and live microphone", () => {
+  it("keeps file picker, mic actions, playback, and sound bars inside the same Audio pane", () => {
     const stt = { ...transcribe(), status: "streaming" as const,
       isStreaming: true, liveWaveform: [-0.5, 0, 0.5, 0] };
     (useTranscription as jest.Mock).mockReturnValue(stt);
     const view = render(<HomeScreen />);
-    const shared = screen.getByLabelText("Shared audio input panel");
-    expect(screen.getAllByLabelText("Sound bar pane")).toHaveLength(1);
+    const shared = screen.getByRole("region", { name: "Audio pane" });
+    const choose = screen.getByRole("button", { name: "Choose a media file" });
+    const micRow = choose.parentElement?.nextElementSibling;
+    expect(micRow?.classList.contains("input-mic-controls")).toBe(true);
+    expect(micRow?.contains(screen.getByRole("button", { name: "Start microphone" }))).toBe(true);
+    expect(micRow?.contains(screen.getByRole("button", { name: "Stop microphone" }))).toBe(true);
+    expect(micRow?.contains(screen.getByRole("button", { name: "Transcribe" }))).toBe(true);
+    expect(shared.querySelector(".input-audio-preview, .soundbar-pane")).toBeNull();
+    expect(shared.querySelectorAll('[aria-label="Audio sound bars"]')).toHaveLength(1);
     expect(screen.getByRole("img", { name: "Audio sound bars" }).querySelectorAll("span")).toHaveLength(24);
-    expect(screen.getByText("● LIVE MIC")).not.toBeNull();
+    expect(screen.getByText("Live microphone input is active.")).not.toBeNull();
     expect(screen.queryByLabelText("Selected audio playback")).toBeNull();
     expect(screen.queryByText("Mic level")).toBeNull();
     expect(screen.queryByRole("meter", { name: "Microphone input level" })).toBeNull();
@@ -191,16 +197,16 @@ describe("bidirectional HomeScreen", () => {
     fireEvent.change(screen.getByLabelText("Media file"), {
       target: { files: [new File(["wav"], "manual.wav", { type: "audio/wav" })] },
     });
-    expect(screen.getByLabelText("Shared audio input panel")).toBe(shared);
-    expect(screen.getAllByLabelText("Sound bar pane")).toHaveLength(1);
-    expect(screen.getByText("FILE PLAYBACK")).not.toBeNull();
+    expect(screen.getByRole("region", { name: "Audio pane" })).toBe(shared);
+    expect(shared.querySelectorAll('[aria-label="Audio sound bars"]')).toHaveLength(1);
+    expect(screen.getByText("Microphone is stopped.")).not.toBeNull();
     expect(screen.getByLabelText("Selected audio playback")).not.toBeNull();
     fireEvent.click(screen.getByText("Start microphone"));
     expect(idle.startMicrophone).toHaveBeenCalledTimes(1);
     (useTranscription as jest.Mock).mockReturnValue(stt);
     view.rerender(<HomeScreen />);
-    expect(screen.getByLabelText("Shared audio input panel")).toBe(shared);
-    expect(screen.getByText("● LIVE MIC")).not.toBeNull();
+    expect(screen.getByRole("region", { name: "Audio pane" })).toBe(shared);
+    expect(screen.getByText("Live microphone input is active.")).not.toBeNull();
     fireEvent.click(screen.getByText("Stop microphone"));
     expect(stt.stopStream).toHaveBeenCalledTimes(1);
   });

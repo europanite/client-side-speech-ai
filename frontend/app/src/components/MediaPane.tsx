@@ -41,7 +41,8 @@ export function MediaPane({
       </div>
       {mode === "stt" ? (
         <>
-          <p className="section-description">File or live microphone input</p>
+          <input ref={fileRef} type="file" accept={MEDIA_ACCEPT}
+            style={{ display: "none" }} aria-label="Media file" disabled={busy} onChange={fileChange} />
           <div className="button-row">
             <button type="button" className="btn primary"
               onClick={() => fileRef.current?.click()} disabled={busy}>
@@ -49,21 +50,27 @@ export function MediaPane({
             </button>
             <span className="file-name">{fileName || "No file selected yet."}</span>
           </div>
-          <input ref={fileRef} type="file" accept={MEDIA_ACCEPT}
-            style={{ display: "none" }} aria-label="Media file" disabled={busy} onChange={fileChange} />
-          <div className="button-row inference-row">
-            <button type="button" className="btn primary" disabled={busy || !inputFile}
-              onClick={onTranscribe}>Transcribe audio</button>
-            <span className="helper-text">The Whisper model loads only when transcription starts.</span>
+          <div className="button-row input-mic-controls">
+            <button type="button" className="btn primary" onClick={onStartMicrophone}
+              disabled={busy}>Start microphone</button>
+            <button type="button" className={streaming || streamStarting ? "btn primary" : "btn secondary"}
+              onClick={onStopMicrophone} disabled={!streaming && !streamStarting}>Stop microphone</button>
           </div>
+          <p className="helper-text input-mic-status">
+            {streaming ? "Live microphone input is active."
+              : streamStarting ? "Preparing microphone input. You can stop now."
+              : finalizing ? "Microphone stopped. Finalizing buffered audio."
+              : "Microphone is stopped."}
+          </p>
           <AudioInputPreview file={inputFile} liveWaveform={liveWaveform}
-            streaming={streaming} starting={streamStarting} finalizing={finalizing}
-            busy={busy} onStartMicrophone={onStartMicrophone}
-            onStopMicrophone={onStopMicrophone} />
+            streaming={streaming} starting={streamStarting} />
+          <div className="button-row input-mic-controls">
+            <button type="button" className="btn primary" disabled={busy || !inputFile}
+              onClick={onTranscribe}>Transcribe</button>
+          </div>
         </>
       ) : (
         <>
-          <p className="section-description">Generated audio · play or save as a file</p>
           {audioUrl ? (
             <>
               <audio key={audioUrl} className="audio-player" controls src={audioUrl}
