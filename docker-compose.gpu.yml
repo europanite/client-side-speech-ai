@@ -1,4 +1,0 @@
-# Optional overlay: use only on a machine with NVIDIA Container Toolkit.
-services:
-  emage-infer:
-    gpus: all
