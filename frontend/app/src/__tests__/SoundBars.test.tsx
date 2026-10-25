@@ -5,7 +5,6 @@ import { sampleLiveWaveform } from "../services/liveWaveform";
 
 const STANDBY = {
   file: null, liveWaveform: [], streaming: false, starting: false,
-  finalizing: false, busy: false, onStartMicrophone: jest.fn(), onStopMicrophone: jest.fn(),
 };
 
 describe("shared audio sound bars", () => {
@@ -24,18 +23,14 @@ describe("shared audio sound bars", () => {
     expect(frequencyDataToBars(new Uint8Array(128))).toEqual(Array(24).fill(0));
   });
 
-  it("keeps one panel while switching between microphone and file playback", () => {
+  it("keeps one inline sound-bar visualizer while switching to microphone input", () => {
     const view = render(<AudioInputPreview {...STANDBY} />);
-    const panel = screen.getByLabelText("Shared audio input panel");
-    expect(screen.getByText("STANDBY")).not.toBeNull();
-    expect(panel.contains(screen.getByRole("button", { name: "Start microphone" }))).toBe(true);
-    expect(panel.contains(screen.getByRole("button", { name: "Stop microphone" }))).toBe(true);
+    const bars = screen.getByRole("img", { name: "Audio sound bars" });
     view.rerender(<AudioInputPreview {...STANDBY} streaming liveWaveform={[-0.8, 0.2, 0.7, 0]} />);
-    expect(screen.getByLabelText("Shared audio input panel")).toBe(panel);
-    expect(screen.getAllByLabelText("Sound bar pane")).toHaveLength(1);
-    expect(screen.getByText("● LIVE MIC")).not.toBeNull();
-    expect(screen.getByRole("img", { name: "Audio sound bars" }).querySelectorAll("span")).toHaveLength(24);
-    expect(panel.querySelector("svg")).toBeNull();
+    expect(screen.getByRole("img", { name: "Audio sound bars" })).toBe(bars);
+    expect(screen.getAllByRole("img", { name: "Audio sound bars" })).toHaveLength(1);
+    expect(bars.querySelectorAll("span")).toHaveLength(24);
+    expect(view.container.querySelector(".input-audio-preview, .soundbar-pane, svg")).toBeNull();
   });
 
   it("animates file playback bars from actual decoded audio frequencies", () => {

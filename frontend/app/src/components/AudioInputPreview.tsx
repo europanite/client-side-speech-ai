@@ -10,16 +10,11 @@ interface AudioInputPreviewProps {
   liveWaveform: readonly number[];
   streaming: boolean;
   starting: boolean;
-  finalizing: boolean;
-  busy: boolean;
-  onStartMicrophone: () => void;
-  onStopMicrophone: () => void;
 }
 
-/** One panel for the file player and the microphone's sound bars. */
+/** One visualizer for file playback and microphone input, without a separate panel. */
 export function AudioInputPreview({
-  file, liveWaveform, streaming, starting, finalizing, busy,
-  onStartMicrophone, onStopMicrophone,
+  file, liveWaveform, streaming, starting,
 }: AudioInputPreviewProps) {
   const [url, setUrl] = useState<string | null>(null);
   const [playbackBars, setPlaybackBars] = useState<number[]>(EMPTY_BARS);
@@ -96,46 +91,19 @@ export function AudioInputPreview({
     : file ? playbackBars : EMPTY_BARS;
 
   return (
-    <div className="input-audio-preview" aria-label="Shared audio input panel">
+    <>
+      <div className="soundbar-visual" role="img" aria-label="Audio sound bars">
+        {bars.map((level, index) => (
+          <span key={index} className="soundbar-column"
+            style={{ height: `${Math.max(5, Math.min(100, level * 100))}%` }} />
+        ))}
+      </div>
       {file && !microphone && (
         <audio key={url ?? file.name} ref={audioRef} className="audio-player"
           controls preload="metadata" src={url ?? undefined}
           aria-label="Selected audio playback" onPlay={startVisualization}
           onPause={stopAnimation} onEnded={stopAnimation} />
       )}
-      <div className="button-row input-mic-controls">
-        <button type="button" className="btn primary" onClick={onStartMicrophone}
-          disabled={busy}>Start microphone</button>
-        <button type="button" className={microphone ? "btn primary" : "btn secondary"}
-          onClick={onStopMicrophone} disabled={!microphone}>Stop microphone</button>
-      </div>
-      <p className="helper-text input-mic-status">
-        {streaming ? "Live microphone input is active."
-          : starting ? "Preparing microphone input. You can stop now."
-          : finalizing ? "Microphone stopped. Finalizing buffered audio."
-          : "Microphone is stopped."}
-      </p>
-      <div className="soundbar-pane" aria-label="Sound bar pane">
-        <div className="soundbar-heading">
-          <span>SOUND BARS</span>
-          <span className={streaming ? "soundbar-live" : ""}>
-            {streaming ? "● LIVE MIC" : starting ? "PREPARING MIC"
-              : file ? "FILE PLAYBACK" : "STANDBY"}
-          </span>
-        </div>
-        <div className="soundbar-visual" role="img" aria-label="Audio sound bars">
-          {bars.map((level, index) => (
-            <span key={index} className="soundbar-column"
-              style={{ height: `${Math.max(5, Math.min(100, level * 100))}%` }} />
-          ))}
-        </div>
-        <p className="soundbar-caption">
-          {streaming ? "Live microphone signal"
-            : starting ? "Preparing microphone capture..."
-            : file ? "Press play to visualize the selected audio."
-            : "Choose a file or start the microphone."}
-        </p>
-      </div>
-    </div>
+    </>
   );
 }
