@@ -26,7 +26,7 @@ export function MediaPane({
 
   const fileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.currentTarget.files?.[0];
-    if (file) onFile(file);
+    if (file && !busy) onFile(file);
     // Permit choosing the same file again after clearing or changing modes.
     event.currentTarget.value = "";
   };
@@ -48,7 +48,7 @@ export function MediaPane({
             <span className="file-name">{fileName || "No file selected yet."}</span>
           </div>
           <input ref={fileRef} type="file" accept={MEDIA_ACCEPT}
-            style={{ display: "none" }} aria-label="Media file" onChange={fileChange} />
+            style={{ display: "none" }} aria-label="Media file" disabled={busy} onChange={fileChange} />
           <div className="button-row">
             <button type="button" className="btn primary"
               onClick={onStartMicrophone} disabled={busy}>Start microphone</button>

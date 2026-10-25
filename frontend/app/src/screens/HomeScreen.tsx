@@ -5,6 +5,7 @@ import { MediaPane } from "../components/MediaPane";
 import { TextPane } from "../components/TextPane";
 import { OperationStatus } from "../components/OperationStatus";
 import { AdvancedVoiceControls } from "../components/AdvancedVoiceControls";
+import { playClickSound } from "../services/clickSound";
 
 type Direction = "stt" | "tts";
 
@@ -66,9 +67,10 @@ const HomeScreen = () => {
   const sttBusy = ["loading-model", "starting-stream", "transcribing",
     "streaming", "finalizing-stream"].includes(status);
   const ttsBusy = speech.status === "loading-model" || speech.status === "synthesizing";
+  const processing = sttBusy || ttsBusy;
 
   const switchMode = (next: Direction) => {
-    if (next === mode) return;
+    if (processing || next === mode) return;
     if (mode === "stt" && (isStreaming || isStreamStarting)) stopStream();
     if (mode === "tts") speech.cancel();
     if (next === "tts" && transcript) setDraftText(transcript);
@@ -76,16 +78,19 @@ const HomeScreen = () => {
   };
 
   const handleFile = (file: File) => {
+    if (processing) return;
     setSelectedFileName(file.name);
     void transcribeFile(file);
   };
 
   const handleMicrophone = () => {
+    if (processing) return;
     setSelectedFileName("");
     void startMicrophone();
   };
 
   const clear = () => {
+    if (processing) return;
     if (mode === "stt") {
       reset();
       setSelectedFileName("");
@@ -128,17 +133,23 @@ const HomeScreen = () => {
   })();
 
   return (
-    <main className="home">
+    <main className="home" onClickCapture={(event) => {
+      if (!(event.target instanceof Element)) return;
+      const control = event.target.closest("button, a.btn");
+      if (control && !(control instanceof HTMLButtonElement && control.disabled)) {
+        playClickSound();
+      }
+    }}>
       <div className="mode-toolbar">
       <nav className="direction-tabs" role="group" aria-label="Conversion direction">
         <button type="button" className={`direction-tab ${mode === "stt" ? "active" : ""}`}
-          aria-pressed={mode === "stt"} onClick={() => switchMode("stt")}>
+          aria-pressed={mode === "stt"} disabled={processing} onClick={() => switchMode("stt")}>
           <span className="tab-number" aria-hidden="true">01</span>
           <span>Audio → Text (STT)</span>
           <span className="tab-arrow" aria-hidden="true">↗</span>
         </button>
         <button type="button" className={`direction-tab ${mode === "tts" ? "active" : ""}`}
-          aria-pressed={mode === "tts"} onClick={() => switchMode("tts")}>
+          aria-pressed={mode === "tts"} disabled={processing} onClick={() => switchMode("tts")}>
           <span className="tab-number" aria-hidden="true">02</span>
           <span>Text → Audio (TTS)</span>
           <span className="tab-arrow" aria-hidden="true">↗</span>
@@ -148,6 +159,7 @@ const HomeScreen = () => {
       <div className="engine-menu" ref={settingsMenuRef}>
         <button ref={settingsButtonRef} type="button" className={`engine-settings-toggle ${settingsOpen ? "active" : ""}`}
           aria-label="Engine settings" aria-expanded={settingsOpen} aria-controls="model-settings-panel"
+          disabled={processing}
           onClick={() => setSettingsOpen((open) => !open)}>
           <span className="engine-settings-icon" aria-hidden="true">⚙</span>
           <span className="engine-settings-label">Settings</span>
@@ -235,7 +247,7 @@ const HomeScreen = () => {
             speech.reset();
           }}
           canGenerate={ttsMode !== "advanced" || Boolean(referenceFile)}
-          onGenerate={() => { void speech.synthesize(draftText,
+          onGenerate={() => { if (processing) return; void speech.synthesize(draftText,
             ttsMode === "advanced" ? { mode: "advanced", referenceFile } : { mode: "standard" }); }}
           onCancel={speech.cancel} onClear={clear} />
       </div>
