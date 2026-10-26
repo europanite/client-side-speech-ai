@@ -1,9 +1,13 @@
+import type { SubtitleFormat } from "../services/subtitles";
+
 interface TextPaneProps {
   mode: "stt" | "tts";
   value: string;
   busy: boolean;
   canClear: boolean;
   canGenerate?: boolean;
+  canDownloadSubtitles?: boolean;
+  onDownloadSubtitles?: (format: SubtitleFormat) => void;
   onChange: (value: string) => void;
   onGenerate: () => void;
   onCancel: () => void;
@@ -11,7 +15,8 @@ interface TextPaneProps {
 }
 
 export function TextPane({
-  mode, value, busy, canClear, canGenerate = true, onChange, onGenerate, onCancel, onClear,
+  mode, value, busy, canClear, canGenerate = true, canDownloadSubtitles = false,
+  onDownloadSubtitles, onChange, onGenerate, onCancel, onClear,
 }: TextPaneProps) {
   return (
     <section className="section workspace-pane" aria-label="Text pane">
@@ -26,6 +31,18 @@ export function TextPane({
           ? "Select an audio file and press Transcribe audio, or start the microphone."
           : "Type or paste text to turn into audio."} />
       <div className="button-row right">
+        {mode === "stt" && (
+          <>
+            <button type="button" className="btn secondary"
+              disabled={!canDownloadSubtitles} onClick={() => onDownloadSubtitles?.("srt")}>
+              Download SRT
+            </button>
+            <button type="button" className="btn secondary"
+              disabled={!canDownloadSubtitles} onClick={() => onDownloadSubtitles?.("vtt")}>
+              Download VTT
+            </button>
+          </>
+        )}
         {mode === "tts" && (
           busy ? (
             <button type="button" className="btn secondary" onClick={onCancel}>

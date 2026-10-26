@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { env, pipeline, WhisperTextStreamer } from "@huggingface/transformers";
 import { createStreamTranscriptionWorker } from "../workers/createStreamTranscriptionWorker";
 import { sampleLiveWaveform } from "../services/liveWaveform";
+import { extractWhisperCues, type SubtitleCue } from "../services/subtitles";
 
 export type TranscriptionStatus =
   | "idle"
@@ -291,7 +292,7 @@ type StreamCaptureNode = AudioWorkletNode | ScriptProcessorNode;
 type StreamWorkerMessage =
   | { type: "model-ready"; requestId: number; modelId: string }
   | { type: "model-error"; requestId: number; modelId: string; error: string }
-  | { type: "transcript"; sessionId: number; chunkId: number; text: string }
+  | { type: "transcript"; sessionId: number; chunkId: number; text: string; cues: SubtitleCue[] }
   | { type: "chunk-error"; sessionId: number; chunkId: number; error: string };
 
 type ActiveStreamRuntime = {
@@ -310,6 +311,7 @@ export interface UseTranscriptionResult {
   status: TranscriptionStatus;
   error: string | null;
   transcript: string;
+  cues: SubtitleCue[];
   progress: TranscriptionProgress | null;
   availableModels: WhisperModelOption[];
   selectedModelId: string;
@@ -331,6 +333,7 @@ export function useTranscription(): UseTranscriptionResult {
   const [status, setStatus] = useState<TranscriptionStatus>("idle");
   const [error, setError] = useState<string | null>(null);
   const [transcript, setTranscript] = useState<string>("");
+  const [cues, setCues] = useState<SubtitleCue[]>([]);
   const [progress, setProgress] = useState<TranscriptionProgress | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
   const [isStreamStarting, setIsStreamStarting] = useState(false);
@@ -550,6 +553,7 @@ export function useTranscription(): UseTranscriptionResult {
       cancelActiveStream();
       setSelectedModelIdState(modelId);
       setTranscript("");
+      setCues([]);
       setError(null);
       setStatus("idle");
     },
@@ -562,6 +566,7 @@ export function useTranscription(): UseTranscriptionResult {
       cancelActiveStream();
       setSelectedLanguageIdState(languageId);
       setTranscript("");
+      setCues([]);
       setError(null);
       setStatus("idle");
     },
@@ -574,6 +579,7 @@ export function useTranscription(): UseTranscriptionResult {
       cancelActiveStream();
       setError(null);
       setTranscript("");
+      setCues([]);
 
       try {
         const asr = await loadModel(selectedModelIdState);
@@ -637,9 +643,11 @@ export function useTranscription(): UseTranscriptionResult {
 
         const result = await asr(channelData, {
           ...buildAsrOptions(selectedLanguageIdState, true),
+          return_timestamps: true,
           streamer,
         });
         setTranscript(extractTranscriptText(result));
+        setCues(extractWhisperCues(result, audioBuffer.duration));
         setProgress({
           percent: 100,
           label: "Transcription complete.",
@@ -671,6 +679,7 @@ export function useTranscription(): UseTranscriptionResult {
       setLiveWaveform([]);
       setError(null);
       setTranscript("");
+      setCues([]);
       setStatus("starting-stream");
 
       try {
@@ -694,6 +703,7 @@ export function useTranscription(): UseTranscriptionResult {
         let streamFailed = false;
         let pendingChunks = 0;
         let chunkId = 0;
+        let sentSampleCount = 0;
         let finishPromise: Promise<void> | null = null;
         let resolveFinish: (() => void) | null = null;
         let lastWaveformUpdate = 0;
@@ -743,6 +753,7 @@ export function useTranscription(): UseTranscriptionResult {
           pendingChunks = Math.max(0, pendingChunks - 1);
           if (message.type === "transcript") {
             appendTranscript(message.text);
+            setCues((previous) => [...previous, ...(message.cues ?? [])]);
           } else {
             streamFailed = true;
             stopRequested = true;
@@ -757,6 +768,8 @@ export function useTranscription(): UseTranscriptionResult {
         worker.addEventListener("message", handleWorkerMessage);
 
         const postPcm = (nativePcm: Float32Array) => {
+          const startSeconds = sentSampleCount / context.sampleRate;
+          sentSampleCount += nativePcm.length;
           const pcm = resampleLinear(
             nativePcm,
             context.sampleRate,
@@ -771,6 +784,7 @@ export function useTranscription(): UseTranscriptionResult {
               sessionId,
               chunkId: nextChunkId,
               pcm: pcm.buffer,
+              startSeconds,
               language: selectedLanguage?.whisperLanguage,
             },
             [pcm.buffer]
@@ -1017,6 +1031,7 @@ registerProcessor("whisper-pcm-capture", WhisperPcmCaptureProcessor);
   const reset = useCallback(() => {
     cancelActiveStream();
     setTranscript("");
+    setCues([]);
     setError(null);
     setLiveWaveform([]);
     setProgress(null);
@@ -1038,6 +1053,7 @@ registerProcessor("whisper-pcm-capture", WhisperPcmCaptureProcessor);
     status,
     error,
     transcript,
+    cues,
     progress,
     availableModels: WHISPER_MODEL_OPTIONS,
     selectedModelId: selectedModelIdState,

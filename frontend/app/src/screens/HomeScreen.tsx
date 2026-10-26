@@ -6,6 +6,7 @@ import { TextPane } from "../components/TextPane";
 import { OperationStatus } from "../components/OperationStatus";
 import { AdvancedVoiceControls } from "../components/AdvancedVoiceControls";
 import { playClickSound } from "../services/clickSound";
+import { serializeSubtitles, type SubtitleFormat } from "../services/subtitles";
 
 type Direction = "stt" | "tts";
 const DEFAULT_SAMPLE_FILE = "speech.wav";
@@ -47,7 +48,7 @@ const HomeScreen = () => {
   }, [settingsOpen]);
 
   const {
-    status, error, transcript, progress, availableModels, selectedModelId,
+    status, error, transcript, cues, progress, availableModels, selectedModelId,
     setSelectedModelId, availableLanguages, selectedLanguageId,
     setSelectedLanguageId, transcribeFile, isStreaming, isStreamStarting,
     liveWaveform, startMicrophone, stopStream, reset,
@@ -131,6 +132,25 @@ const HomeScreen = () => {
     overrideSample();
     setSelectedFile(null);
     void startMicrophone();
+  };
+
+  const downloadSubtitles = (format: SubtitleFormat) => {
+    if (sttBusy || cues.length === 0) return;
+    const content = serializeSubtitles(cues, format);
+    if (!content) return;
+    const stem = selectedFile?.name.replace(/\.[^.]+$/, "") || "microphone";
+    const blob = new Blob([content], {
+      type: format === "srt" ? "application/x-subrip;charset=utf-8" : "text/vtt;charset=utf-8",
+    });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${stem}.${format}`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    const revokeObjectURL = URL.revokeObjectURL.bind(URL);
+    window.setTimeout(() => revokeObjectURL(url), 1000);
   };
 
   const clear = () => {
@@ -288,6 +308,8 @@ const HomeScreen = () => {
           onStartMicrophone={handleMicrophone} onStopMicrophone={stopStream} />
         <TextPane mode={mode} value={mode === "stt" ? transcript : draftText}
           busy={ttsBusy}
+          canDownloadSubtitles={cues.length > 0 && !sttBusy}
+          onDownloadSubtitles={downloadSubtitles}
           canClear={mode === "stt"
             ? Boolean(transcript || error || sampleLoadError || selectedFile || isStreaming || isStreamStarting)
             : Boolean(draftText || speech.audioUrl || speech.error || ttsBusy)}
