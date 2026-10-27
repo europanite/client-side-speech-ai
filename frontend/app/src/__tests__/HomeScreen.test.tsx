@@ -12,7 +12,7 @@ type MockTranscription = ReturnType<typeof useTranscription>;
 type MockSynthesis = ReturnType<typeof useSpeechSynthesis>;
 
 const transcribe = (): MockTranscription => ({
-  status: "idle", error: null, transcript: "", progress: null,
+  status: "idle", error: null, transcript: "", cues: [], progress: null,
   availableModels: [
     { id: "Xenova/whisper-small", label: "Small", description: "Smaller model" },
     { id: "Xenova/whisper-base", label: "Base", description: "Balanced model" },
@@ -223,6 +223,43 @@ describe("bidirectional HomeScreen", () => {
     expect(editor.value).toBe("Hello from STT");
     fireEvent.click(screen.getByText("Generate speech"));
     expect(tts.synthesize).toHaveBeenCalledWith("Hello from STT", { mode: "standard" });
+  });
+
+  it("exports SRT and VTT with the selected media's base filename", () => {
+    const stt = { ...transcribe(), transcript: "Hello", cues: [
+      { start: 1.25, end: 2.5, text: "Hello" },
+    ] };
+    (useTranscription as jest.Mock).mockReturnValue(stt);
+    const downloadedNames: string[] = [];
+    const anchorClick = jest.spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(function (this: HTMLAnchorElement) {
+        downloadedNames.push(this.download);
+      });
+    try {
+      render(<HomeScreen />);
+      const srt = screen.getByRole("button", { name: "Download SRT" }) as HTMLButtonElement;
+      const vtt = screen.getByRole("button", { name: "Download VTT" }) as HTMLButtonElement;
+      expect(srt.disabled).toBe(false);
+      expect(vtt.disabled).toBe(false);
+      fireEvent.change(screen.getByLabelText("Media file"), {
+        target: { files: [new File(["sample"], "meeting.audio.mp4", { type: "video/mp4" })] },
+      });
+      fireEvent.click(srt);
+      expect(anchorClick).toHaveBeenCalledTimes(1);
+      fireEvent.click(vtt);
+      expect(anchorClick).toHaveBeenCalledTimes(2);
+      expect(downloadedNames).toEqual(["meeting.audio.srt", "meeting.audio.vtt"]);
+    } finally {
+      anchorClick.mockRestore();
+    }
+  });
+
+  it("disables subtitle downloads without completed timed cues", () => {
+    render(<HomeScreen />);
+    expect((screen.getByRole("button", { name: "Download SRT" }) as HTMLButtonElement).disabled)
+      .toBe(true);
+    expect((screen.getByRole("button", { name: "Download VTT" }) as HTMLButtonElement).disabled)
+      .toBe(true);
   });
 
   it("exposes Pocket TTS Advanced Mode and requires a reference voice", async () => {

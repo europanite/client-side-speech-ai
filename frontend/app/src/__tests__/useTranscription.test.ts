@@ -17,6 +17,7 @@ describe("useTranscription hook", () => {
     expect(result.current.status).toBe("idle");
     expect(result.current.error).toBeNull();
     expect(result.current.transcript).toBe("");
+    expect(result.current.cues).toEqual([]);
     expect(result.current.progress).toBeNull();
     expect(result.current.selectedModelId).toBe(DEFAULT_WHISPER_MODEL_ID);
     expect(result.current.availableModels.length).toBeGreaterThan(0);
@@ -46,6 +47,7 @@ describe("useTranscription hook", () => {
     expect(result.current.status).toBe("idle");
     expect(result.current.error).toBeNull();
     expect(result.current.transcript).toBe("");
+    expect(result.current.cues).toEqual([]);
     expect(result.current.selectedModelId).toBe(DEFAULT_WHISPER_MODEL_ID);
     expect(result.current.selectedLanguageId).toBe(
       DEFAULT_TRANSCRIPTION_LANGUAGE_ID

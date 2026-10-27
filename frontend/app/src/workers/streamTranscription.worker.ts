@@ -1,3 +1,5 @@
+import { extractWhisperCues } from "../services/subtitles";
+
 type InitMessage = {
   type: "init";
   requestId: number;
@@ -9,6 +11,7 @@ type TranscribeMessage = {
   sessionId: number;
   chunkId: number;
   pcm: ArrayBuffer;
+  startSeconds: number;
   language?: string;
 };
 
@@ -114,12 +117,14 @@ worker.onmessage = (event: MessageEvent<IncomingMessage>) => {
     }
 
     try {
-      const options: { task: "transcribe"; language?: string } = {
+      const options: { task: "transcribe"; language?: string; return_timestamps: boolean } = {
         task: "transcribe",
+        return_timestamps: true,
       };
       if (message.language) options.language = message.language;
 
-      const result = await asr(new Float32Array(message.pcm), options);
+      const pcm = new Float32Array(message.pcm);
+      const result = await asr(pcm, options);
       if (cancelledSessions.has(message.sessionId)) return;
 
       worker.postMessage({
@@ -127,6 +132,7 @@ worker.onmessage = (event: MessageEvent<IncomingMessage>) => {
         sessionId: message.sessionId,
         chunkId: message.chunkId,
         text: extractText(result),
+        cues: extractWhisperCues(result, pcm.length / 16_000, message.startSeconds),
       });
     } catch (error) {
       worker.postMessage({
