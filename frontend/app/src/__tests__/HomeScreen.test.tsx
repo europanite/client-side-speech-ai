@@ -24,6 +24,8 @@ const transcribe = (): MockTranscription => ({
     { id: "japanese", label: "Japanese", description: "Japanese", whisperLanguage: "japanese" },
   ],
   selectedLanguageId: "english", setSelectedLanguageId: jest.fn(),
+  chunkCountMode: "auto", setChunkCountMode: jest.fn(),
+  manualChunkCount: 4, setManualChunkCount: jest.fn(),
   transcribeFile: jest.fn().mockResolvedValue(undefined),
   isStreaming: false, isStreamStarting: false, liveWaveform: [],
   startStream: jest.fn(), startMicrophone: jest.fn().mockResolvedValue(undefined),
@@ -153,6 +155,25 @@ describe("bidirectional HomeScreen", () => {
     });
     expect(stt.setSelectedModelId).toHaveBeenCalledWith("Xenova/whisper-base");
     expect(stt.setSelectedLanguageId).toHaveBeenCalledWith("japanese");
+  });
+
+  it("offers automatic or manual file chunk counts in Settings", () => {
+    const stt = transcribe();
+    (useTranscription as jest.Mock).mockReturnValue(stt);
+    const { rerender } = render(<HomeScreen />);
+    fireEvent.click(screen.getByRole("button", { name: "Engine settings" }));
+    const mode = screen.getByLabelText("File chunking") as HTMLSelectElement;
+    const count = screen.getByLabelText("Manual chunk count") as HTMLInputElement;
+    expect(mode.value).toBe("auto");
+    expect(count.disabled).toBe(true);
+    fireEvent.change(mode, { target: { value: "manual" } });
+    expect(stt.setChunkCountMode).toHaveBeenCalledWith("manual");
+
+    (useTranscription as jest.Mock).mockReturnValue({ ...stt, chunkCountMode: "manual" });
+    rerender(<HomeScreen />);
+    expect((screen.getByLabelText("Manual chunk count") as HTMLInputElement).disabled).toBe(false);
+    fireEvent.change(screen.getByLabelText("Manual chunk count"), { target: { value: "8" } });
+    expect(stt.setManualChunkCount).toHaveBeenCalledWith(8);
   });
 
   it("retains accepted video file types and defers transcription until inference", async () => {
