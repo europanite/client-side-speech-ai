@@ -4,6 +4,7 @@ import { env, pipeline, WhisperTextStreamer } from "@huggingface/transformers";
 import { createStreamTranscriptionWorker } from "../workers/createStreamTranscriptionWorker";
 import { sampleLiveWaveform } from "../services/liveWaveform";
 import { extractWhisperCues, type SubtitleCue } from "../services/subtitles";
+import { planFileChunks, type ChunkCountMode, MAX_MANUAL_CHUNK_COUNT } from "../services/transcriptionChunks";
 
 export type TranscriptionStatus =
   | "idle"
@@ -185,23 +186,12 @@ function mixToMono(audioBuffer: AudioBuffer): Float32Array {
 }
 
 const WHISPER_SAMPLE_RATE = 16_000;
-const FILE_CHUNK_LENGTH_SECONDS = 20;
-const FILE_STRIDE_LENGTH_SECONDS = 5;
 const STREAM_WINDOW_SECONDS = 6;
 const MIN_STREAM_FLUSH_SECONDS = 0.5;
 const STREAM_WORKER_INIT_TIMEOUT_MS = 300_000;
 
 function clampProgressPercent(value: number): number {
   return Math.max(0, Math.min(100, Math.round(value)));
-}
-
-function getFileChunkCount(sampleCount: number): number {
-  const chunkSamples = FILE_CHUNK_LENGTH_SECONDS * WHISPER_SAMPLE_RATE;
-  const strideSamples = FILE_STRIDE_LENGTH_SECONDS * WHISPER_SAMPLE_RATE;
-  const stepSamples = chunkSamples - strideSamples * 2;
-
-  if (sampleCount <= chunkSamples) return 1;
-  return Math.ceil((sampleCount - chunkSamples) / stepSamples) + 1;
 }
 
 function concatFloat32(chunks: Float32Array[]): Float32Array {
@@ -261,7 +251,7 @@ function extractTranscriptText(result: unknown): string {
   return "";
 }
 
-function buildAsrOptions(languageId: string, chunked: boolean) {
+function buildAsrOptions(languageId: string, chunkLengthSeconds: number, strideLengthSeconds: number) {
   const selectedLanguage = TRANSCRIPTION_LANGUAGE_OPTIONS.find(
     (option) => option.id === languageId
   );
@@ -275,10 +265,8 @@ function buildAsrOptions(languageId: string, chunked: boolean) {
     task: "transcribe",
   };
 
-  if (chunked) {
-    options.chunk_length_s = FILE_CHUNK_LENGTH_SECONDS;
-    options.stride_length_s = FILE_STRIDE_LENGTH_SECONDS;
-  }
+  options.chunk_length_s = chunkLengthSeconds;
+  options.stride_length_s = strideLengthSeconds;
 
   if (selectedLanguage?.whisperLanguage) {
     options.language = selectedLanguage.whisperLanguage;
@@ -319,6 +307,10 @@ export interface UseTranscriptionResult {
   availableLanguages: TranscriptionLanguageOption[];
   selectedLanguageId: string;
   setSelectedLanguageId: (languageId: string) => void;
+  chunkCountMode: ChunkCountMode;
+  setChunkCountMode: (mode: ChunkCountMode) => void;
+  manualChunkCount: number;
+  setManualChunkCount: (count: number) => void;
   transcribeFile: (file: File) => Promise<void>;
   isStreaming: boolean;
   isStreamStarting: boolean;
@@ -344,6 +336,12 @@ export function useTranscription(): UseTranscriptionResult {
   const [selectedLanguageIdState, setSelectedLanguageIdState] = useState<string>(
     DEFAULT_TRANSCRIPTION_LANGUAGE_ID
   );
+  const [chunkCountMode, setChunkCountMode] = useState<ChunkCountMode>("auto");
+  const [manualChunkCount, setManualChunkCountState] = useState(4);
+  const setManualChunkCount = useCallback((count: number) => {
+    if (!Number.isFinite(count)) return;
+    setManualChunkCountState(Math.max(1, Math.min(MAX_MANUAL_CHUNK_COUNT, Math.trunc(count))));
+  }, []);
 
   // File transcription stays on the main-thread pipeline. Live transcription
   // uses a dedicated worker so heavy Whisper inference does not freeze the UI.
@@ -618,7 +616,8 @@ export function useTranscription(): UseTranscriptionResult {
         }
 
         const channelData = mixToMono(audioBuffer);
-        const totalChunks = getFileChunkCount(channelData.length);
+        const chunkPlan = planFileChunks(channelData.length, chunkCountMode, manualChunkCount);
+        const totalChunks = chunkPlan.count;
         let completedChunks = 0;
 
         setProgress({
@@ -642,7 +641,7 @@ export function useTranscription(): UseTranscriptionResult {
         });
 
         const result = await asr(channelData, {
-          ...buildAsrOptions(selectedLanguageIdState, true),
+          ...buildAsrOptions(selectedLanguageIdState, chunkPlan.chunkLengthSeconds, chunkPlan.strideLengthSeconds),
           return_timestamps: true,
           streamer,
         });
@@ -650,7 +649,9 @@ export function useTranscription(): UseTranscriptionResult {
         setCues(extractWhisperCues(result, audioBuffer.duration));
         setProgress({
           percent: 100,
-          label: "Transcription complete.",
+          label: chunkCountMode === "manual" && manualChunkCount !== totalChunks
+            ? `Transcription complete (${totalChunks} chunks; requested ${manualChunkCount}).`
+            : `Transcription complete (${totalChunks} chunks).`,
         });
         setStatus("done");
       } catch (e) {
@@ -660,7 +661,7 @@ export function useTranscription(): UseTranscriptionResult {
         setStatus("error");
       }
     },
-    [cancelActiveStream, loadModel, selectedLanguageIdState, selectedModelIdState]
+    [cancelActiveStream, loadModel, selectedLanguageIdState, selectedModelIdState, chunkCountMode, manualChunkCount]
   );
 
   const startStreamInternal = useCallback(
@@ -1061,6 +1062,10 @@ registerProcessor("whisper-pcm-capture", WhisperPcmCaptureProcessor);
     availableLanguages: TRANSCRIPTION_LANGUAGE_OPTIONS,
     selectedLanguageId: selectedLanguageIdState,
     setSelectedLanguageId,
+    chunkCountMode,
+    setChunkCountMode,
+    manualChunkCount,
+    setManualChunkCount,
     transcribeFile,
     isStreaming,
     isStreamStarting,

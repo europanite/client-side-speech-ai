@@ -50,7 +50,8 @@ const HomeScreen = () => {
   const {
     status, error, transcript, cues, progress, availableModels, selectedModelId,
     setSelectedModelId, availableLanguages, selectedLanguageId,
-    setSelectedLanguageId, transcribeFile, isStreaming, isStreamStarting,
+    setSelectedLanguageId, chunkCountMode, setChunkCountMode,
+    manualChunkCount, setManualChunkCount, transcribeFile, isStreaming, isStreamStarting,
     liveWaveform, startMicrophone, stopStream, reset,
   } = transcription;
 
@@ -263,6 +264,24 @@ const HomeScreen = () => {
                 ))}
               </select>
               <p className="helper-text">{selectedLanguage?.description}</p>
+            </div>
+            <div className="field-group">
+              <label className="field-label" htmlFor="chunk-count-mode-select">File chunking</label>
+              <select id="chunk-count-mode-select" className="select-input" value={chunkCountMode}
+                onChange={(event) => setChunkCountMode(event.target.value as "auto" | "manual")}
+                disabled={sttBusy}>
+                <option value="auto">Auto — minimize chunks with overlap</option>
+                <option value="manual">Manual — choose chunk count</option>
+              </select>
+              <p className="helper-text">Applies to uploaded audio/video only, not microphone streaming.</p>
+            </div>
+            <div className="field-group">
+              <label className="field-label" htmlFor="manual-chunk-count-input">Manual chunk count</label>
+              <input id="manual-chunk-count-input" className="select-input" type="number"
+                min={1} max={256} step={1} value={manualChunkCount}
+                onChange={(event) => setManualChunkCount(Number(event.target.value))}
+                disabled={sttBusy || chunkCountMode !== "manual"} />
+              <p className="helper-text">Whisper supports up to 30 seconds per chunk. The count may be adjusted for file duration; fewer chunks can mean less boundary overlap.</p>
             </div>
           </>
         ) : (
