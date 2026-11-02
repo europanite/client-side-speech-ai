@@ -246,6 +246,28 @@ describe("bidirectional HomeScreen", () => {
     expect(tts.synthesize).toHaveBeenCalledWith("Hello from STT", { mode: "standard" });
   });
 
+  it("groups Kokoro voices and forwards a new voice selection", () => {
+    const tts = {
+      ...synthesize(),
+      voices: [
+        { id: "af_heart", label: "Heart", language: "en" },
+        { id: "bf_emma", label: "Emma", language: "en" },
+        { id: "jf_gongitsune", label: "Gongitsune", language: "ja" },
+      ] as MockSynthesis["voices"],
+    };
+    (useSpeechSynthesis as jest.Mock).mockReturnValue(tts);
+    render(<HomeScreen />);
+    fireEvent.click(screen.getByRole("button", { name: "Text to Speech" }));
+    fireEvent.click(screen.getByRole("button", { name: "Engine settings" }));
+    const select = screen.getByLabelText("TTS voice") as HTMLSelectElement;
+    expect(select.querySelector('optgroup[label="English (UK) — female"]')).not.toBeNull();
+    expect(select.querySelector('optgroup[label="Japanese — female"]')).not.toBeNull();
+    expect(select.querySelectorAll("option")).toHaveLength(3);
+    fireEvent.change(select, { target: { value: "jf_gongitsune" } });
+    expect(tts.reset).toHaveBeenCalled();
+    expect(tts.setVoiceId).toHaveBeenCalledWith("jf_gongitsune");
+  });
+
   it("exports SRT and VTT with the selected media's base filename", () => {
     const stt = { ...transcribe(), transcript: "Hello", cues: [
       { start: 1.25, end: 2.5, text: "Hello" },

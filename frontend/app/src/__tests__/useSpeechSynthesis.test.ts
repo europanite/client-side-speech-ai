@@ -2,6 +2,7 @@ import { act, renderHook } from "@testing-library/react";
 import { useSpeechSynthesis } from "../hooks/useSpeechSynthesis";
 import { synthesizeSpeech } from "../services/ttsEngine";
 import { synthesizeClonedSpeech } from "../services/advancedTts";
+import { TTS_VOICE_GROUPS, TTS_VOICES } from "../services/ttsVoices";
 
 jest.mock("../services/ttsEngine", () => ({ synthesizeSpeech: jest.fn() }));
 jest.mock("../services/advancedTts", () => ({ synthesizeClonedSpeech: jest.fn(), cancelClonedSpeech: jest.fn() }));
@@ -19,6 +20,24 @@ afterEach(() => {
 });
 
 describe("useSpeechSynthesis", () => {
+  it("offers all supported Kokoro voices with unique IDs and valid groups", () => {
+    expect(TTS_VOICES).toHaveLength(33);
+    expect(new Set(TTS_VOICES.map((voice) => voice.id)).size).toBe(33);
+    expect(TTS_VOICES[0].id).toBe("af_heart");
+    for (const voice of TTS_VOICES) {
+      expect(TTS_VOICE_GROUPS.some((group) => voice.id.startsWith(group.prefix))).toBe(true);
+      expect(voice.language).toBe(voice.id.startsWith("j") ? "ja" : "en");
+    }
+  });
+
+  it("synthesizes with a newly selected Japanese voice", async () => {
+    speakMock.mockResolvedValue(new Blob(["RIFF"], { type: "audio/wav" }));
+    const { result } = renderHook(() => useSpeechSynthesis());
+    act(() => result.current.setVoiceId("jf_gongitsune"));
+    await act(async () => { await result.current.synthesize("こんにちは"); });
+    expect(speakMock).toHaveBeenCalledWith("こんにちは", "jf_gongitsune", expect.any(Function));
+  });
+
   it("generates and exposes a downloadable audio URL", async () => {
     speakMock.mockResolvedValue(new Blob(["RIFF"], { type: "audio/wav" }));
     const { result, unmount } = renderHook(() => useSpeechSynthesis());

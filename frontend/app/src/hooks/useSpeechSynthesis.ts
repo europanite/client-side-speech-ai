@@ -1,17 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { synthesizeSpeech } from "../services/ttsEngine";
 import { synthesizeClonedSpeech, cancelClonedSpeech } from "../services/advancedTts";
+import { TTS_VOICES } from "../services/ttsVoices";
+
+export { TTS_VOICES } from "../services/ttsVoices";
 
 export type TtsSelection = { mode: "standard" | "advanced"; referenceFile?: File | null };
 
 export type TtsStatus = "idle" | "loading-model" | "synthesizing" | "done" | "error";
-
-export const TTS_VOICES = [
-  { id: "af_heart", label: "English — female", language: "en" },
-  { id: "am_michael", label: "English — male", language: "en" },
-  { id: "jf_alpha", label: "Japanese — female", language: "ja" },
-  { id: "jm_kumo", label: "Japanese — male", language: "ja" },
-] as const;
 
 export function useSpeechSynthesis() {
   const [status, setStatus] = useState<TtsStatus>("idle");
