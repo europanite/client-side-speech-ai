@@ -7,6 +7,7 @@ import { OperationStatus } from "../components/OperationStatus";
 import { AdvancedVoiceControls } from "../components/AdvancedVoiceControls";
 import { playClickSound } from "../services/clickSound";
 import { serializeSubtitles, type SubtitleFormat } from "../services/subtitles";
+import { TTS_VOICE_GROUPS } from "../services/ttsVoices";
 
 type Direction = "stt" | "tts";
 const DEFAULT_SAMPLE_FILE = "speech.wav";
@@ -302,15 +303,19 @@ const HomeScreen = () => {
               <>
                 <label className="field-label" htmlFor="tts-voice-select">TTS voice</label>
                 <select id="tts-voice-select" className="select-input" value={speech.voiceId}
-              onChange={(event) => {
-                speech.reset();
-                speech.setVoiceId(event.target.value);
-              }} disabled={ttsBusy}>
-              {speech.voices.map((voice) => (
-                <option key={voice.id} value={voice.id}>{voice.label} ({voice.id})</option>
-              ))}
-            </select>
-                <p className="helper-text">Kokoro 82M (English/Japanese); model assets are downloaded once and inference runs in your browser.</p>
+                  onChange={(event) => {
+                    speech.reset();
+                    speech.setVoiceId(event.target.value);
+                  }} disabled={ttsBusy}>
+                  {TTS_VOICE_GROUPS.map((group) => (
+                    <optgroup key={group.prefix} label={group.label}>
+                      {speech.voices.filter((voice) => voice.id.startsWith(group.prefix)).map((voice) => (
+                        <option key={voice.id} value={voice.id}>{voice.label} ({voice.id})</option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+                <p className="helper-text">33 Kokoro voices in American English, British English, and Japanese. Model assets are downloaded once; inference runs in your browser.</p>
               </>
             )}
           </div>
