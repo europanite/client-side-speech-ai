@@ -126,6 +126,25 @@ describe("bidirectional HomeScreen", () => {
     expect(document.getElementById("model-settings-panel")?.hasAttribute("hidden")).toBe(true);
   });
 
+  it("identifies the input pane when switching directions for the stacked layout", () => {
+    render(<HomeScreen />);
+    const workspace = document.querySelector(".workspace-grid");
+    const audio = screen.getByRole("region", { name: "Audio pane" });
+    const text = screen.getByRole("region", { name: "Text pane" });
+
+    expect(workspace?.getAttribute("data-mode")).toBe("stt");
+    expect(audio.querySelector(".pane-role")?.textContent).toBe("INPUT");
+    expect(text.querySelector(".pane-role")?.textContent).toBe("OUTPUT");
+
+    fireEvent.click(screen.getByRole("button", { name: "Text to Speech" }));
+    expect(workspace?.getAttribute("data-mode")).toBe("tts");
+    expect(text.querySelector(".pane-role")?.textContent).toBe("INPUT");
+    expect(audio.querySelector(".pane-role")?.textContent).toBe("OUTPUT");
+
+    fireEvent.click(screen.getByRole("button", { name: "Speech to Text" }));
+    expect(workspace?.getAttribute("data-mode")).toBe("stt");
+  });
+
   it("opens and closes engine options without hiding the workspace", () => {
     render(<HomeScreen />);
     const toggle = screen.getByRole("button", { name: "Engine settings" });
