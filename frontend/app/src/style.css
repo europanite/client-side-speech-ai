@@ -361,6 +361,8 @@ body {
   .app-shell { margin: 0; padding: 12px; border-radius: 0; }
   .app-header { flex-wrap: wrap; }
   .model-controls, .workspace-grid { grid-template-columns: minmax(0, 1fr); }
+  /* In the stacked layout, the editable text is the TTS input. */
+  .workspace-grid[data-mode="tts"] > .workspace-pane[aria-label="Text pane"] { order: -1; }
   .direction-tab { padding: 10px 6px; font-size: 12px; }
   .workspace-pane .transcript-box { min-height: 220px; }
 }
