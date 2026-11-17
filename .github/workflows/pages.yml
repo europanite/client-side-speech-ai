@@ -1,4 +1,6 @@
 name: pages
+env:
+  ONNXRUNTIME_NODE_INSTALL_CUDA: "skip"
 on:
   push:
     branches: [ main ]
@@ -22,7 +24,7 @@ jobs:
           node-version: 24
       - name: Install deps
         working-directory: ./frontend/app
-        run: npm i
+        run: npm ci
       - name: Generate sitemap
         run: |
           LASTMOD="$(git log -1 --format=%cs -- frontend/app/index.html frontend/app/src)"

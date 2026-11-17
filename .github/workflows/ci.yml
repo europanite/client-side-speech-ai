@@ -1,4 +1,6 @@
 name: CI
+env:
+  ONNXRUNTIME_NODE_INSTALL_CUDA: "skip"
 on:
   push:
   pull_request:
