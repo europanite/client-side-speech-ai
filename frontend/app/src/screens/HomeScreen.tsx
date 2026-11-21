@@ -324,7 +324,7 @@ const HomeScreen = () => {
       </div>
       </div>
 
-      <div className="workspace-grid">
+      <div className="workspace-grid" data-mode={mode}>
         <MediaPane mode={mode} fileName={selectedFile?.name ?? ""} inputFile={selectedFile} busy={sttBusy}
           streaming={isStreaming} streamStarting={isStreamStarting}
           finalizing={status === "finalizing-stream"} liveWaveform={liveWaveform}
