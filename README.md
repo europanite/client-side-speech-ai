@@ -30,6 +30,8 @@
 
 [▶ Open the app](https://europanite.github.io/client-side-speech-ai/)
 
+Speech to Text. Text to Speech. This tool runs inside your web browser for free.
+
 Browser-based client-side speech-to-text (Whisper) and text-to-speech (Kokoro + Pocket TTS) tool.
 The input media and text are processed by models in the browser; model, library and dictionary
 assets are downloaded on first use. No installation, registration, or payment required.
