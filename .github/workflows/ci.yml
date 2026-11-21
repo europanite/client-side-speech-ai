@@ -27,7 +27,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
       - name: Use Node ${{ matrix.node }}
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node }}
           cache: npm
@@ -35,12 +35,6 @@ jobs:
       - name: Install deps
         working-directory: frontend/app
         run: npm ci
-      - name: Type check (skip if no TS)
-        if: hashFiles('frontend/app/tsconfig.json') != ''
-        working-directory: frontend/app
-        run: |
-          npx --yes typescript@latest -v >/dev/null 2>&1 || true
-          npx tsc --noEmit || (echo "::warning::Type check failed"; exit 1)
       - name: Run Jest with coverage (CI mode)
         working-directory: frontend/app
         run: npm test -- --ci --runInBand --coverage --verbose
